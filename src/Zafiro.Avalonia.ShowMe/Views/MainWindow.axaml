@@ -1,0 +1,357 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Zafiro.Avalonia.ShowMe.ViewModels"
+        xmlns:paz="using:Avalonia.Controls.PanAndZoom"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="750"
+        x:Class="Zafiro.Avalonia.ShowMe.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Zafiro ShowMe - Previsualizador XAML"
+        Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        
+        <!-- ================= BARRA DE HERRAMIENTAS / CABECERA ================= -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemChromeMediumColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                
+                <!-- Logo & Título -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <PathIcon Data="M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9Z"
+                              Foreground="{DynamicResource SystemAccentColor}"
+                              Width="20" Height="20" />
+                    <TextBlock Text="ShowMe" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Botón Abrir Archivo -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" Spacing="8">
+                    <Button Classes="toolbar"
+                            Command="{Binding OpenFileCommand}"
+                            ToolTip.Tip="Abrir archivo AXAML / XAML (Ctrl+O)">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"
+                                      Width="14" Height="14" />
+                            <TextBlock Text="Abrir..." VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Indicador del archivo cargado -->
+                    <Border IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            Background="{DynamicResource SystemChromeLowColor}"
+                            CornerRadius="4"
+                            Padding="8,4"
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"
+                                      Width="12" Height="12" Foreground="{DynamicResource SystemAccentColor}" />
+                            <TextBlock Text="{Binding CurrentSession.Target.RelativeXamlPath}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       FontSize="12" />
+                            <TextBlock Text="{Binding CurrentSession.Target.TargetName, StringFormat='({0})'}"
+                                       Foreground="{DynamicResource SystemBaseMediumColor}"
+                                       FontSize="11"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Controles centrales (Zoom, Tamaño) -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                            IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    
+                    <!-- Controles de Zoom -->
+                    <Border Background="{DynamicResource SystemChromeLowColor}" CornerRadius="4" Padding="2">
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <Button Classes="toolbar"
+                                    Command="{Binding CurrentSession.ZoomOutCommand}"
+                                    ToolTip.Tip="Alejar (Zoom Out)">
+                                <TextBlock Text="−" FontWeight="Bold" FontSize="14" />
+                            </Button>
+                            
+                            <TextBlock Text="{Binding CurrentSession.ZoomText}"
+                                       Width="46"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="12" />
+
+                            <Button Classes="toolbar"
+                                    Command="{Binding CurrentSession.ZoomInCommand}"
+                                    ToolTip.Tip="Acercar (Zoom In)">
+                                <TextBlock Text="+" FontWeight="Bold" FontSize="14" />
+                            </Button>
+
+                            <Button Classes="toolbar"
+                                    Command="{Binding CurrentSession.ResetZoomCommand}"
+                                    ToolTip.Tip="Zoom 100% (1:1)">
+                                <TextBlock Text="1:1" FontSize="11" />
+                            </Button>
+
+                            <Button Classes="toolbar"
+                                    Command="{Binding CurrentSession.FitCommand}"
+                                    ToolTip.Tip="Ajustar al área visible">
+                                <TextBlock Text="Ajustar" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Selector de Tema y Acciones de Imagen -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="10" Margin="16,0,0,0" VerticalAlignment="Center">
+                    
+                    <!-- SELECTOR DE THEME -->
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <PathIcon Data="M12,18C11.11,18 10.26,17.8 9.5,17.45C11.56,16.5 13,14.42 13,12C13,9.58 11.56,7.5 9.5,6.55C10.26,6.2 11.11,6 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M20,8.69V4H15.31L12,0.69L8.69,4H4V8.69L0.69,12L4,15.31V20H8.69L12,23.31L15.31,20H20V15.31L23.31,12L20,8.69Z"
+                                  Width="14" Height="14" Foreground="{DynamicResource SystemAccentColor}" />
+                        <ComboBox ItemsSource="{Binding ThemeOptions}"
+                                  SelectedItem="{Binding SelectedTheme}"
+                                  ToolTip.Tip="Cambiar tema (Aplicación / Claro / Oscuro)"
+                                  Width="120">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ThemeOption">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Botón Guardar Imagen -->
+                    <Button Classes="toolbar"
+                            Command="{Binding CurrentSession.SaveImageCommand}"
+                            IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Guardar imagen renderizada como archivo PNG / JPEG">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
+                                      Width="14" Height="14" />
+                            <TextBlock Text="Guardar Imagen" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Botón Copiar Imagen -->
+                    <Button Classes="toolbar"
+                            Command="{Binding CurrentSession.CopyImageCommand}"
+                            IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Copiar imagen al portapapeles">
+                        <PathIcon Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
+                                  Width="14" Height="14" />
+                    </Button>
+
+                    <!-- Botón Recargar -->
+                    <Button Classes="toolbar"
+                            Command="{Binding CurrentSession.ReloadCommand}"
+                            IsEnabled="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Recargar XAML manualmente">
+                        <PathIcon Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                  Width="14" Height="14" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= ÁREA CENTRAL DE PREVISUALIZACIÓN ================= -->
+        <Panel Grid.Row="1">
+            
+            <!-- FONDO CUADRICULADO NEUTRO (Tipo lienzo gráfico) -->
+            <Panel Background="{DynamicResource SystemChromeLowColor}" />
+
+            <!-- ESTADO VACÍO: ZONA DE DRAG & DROP -->
+            <Border IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNull}}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Classes="drop-zone"
+                    Padding="40,32"
+                    MaxWidth="520">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <PathIcon Data="M19.35,10.04C18.67,6.59 15.64,4 12,4C9.11,4 6.6,5.64 5.35,8.04C2.34,8.36 0,10.91 0,14A6,6 0 0,0 6,20H19A5,5 0 0,0 24,15C24,12.36 21.95,10.22 19.35,10.04M14,13V17H10V13H7L12,8L17,13H14Z"
+                              Width="48" Height="48"
+                              Foreground="{DynamicResource SystemAccentColor}"
+                              HorizontalAlignment="Center" />
+                    
+                    <TextBlock Text="Arrastra y suelta aquí un archivo .axaml"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               TextAlignment="Center" />
+                    
+                    <TextBlock Text="ShowMe analizará automáticamente el proyecto host, compilará y conectará con el previewer oficial de Avalonia."
+                               Foreground="{DynamicResource SystemBaseMediumColor}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               FontSize="13" />
+
+                    <Button HorizontalAlignment="Center"
+                            Command="{Binding OpenFileCommand}"
+                            Padding="16,8"
+                            CornerRadius="6"
+                            Background="{DynamicResource SystemAccentColor}"
+                            Foreground="White">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Data="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"
+                                      Width="16" Height="16" />
+                            <TextBlock Text="Seleccionar archivo AXAML..." FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- CONTENEDOR PAN & ZOOM (Elemento central oficial) -->
+            <paz:ZoomBorder x:Name="ZoomBorder"
+                            IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            PanButton="Left"
+                            ZoomSpeed="1.2"
+                            Stretch="None"
+                            EnablePan="True"
+                            EnableZoom="True"
+                            EnableConstrains="False"
+                            ClipToBounds="True"
+                            Focusable="True"
+                            VerticalAlignment="Stretch"
+                            HorizontalAlignment="Stretch">
+                
+                <!-- Lienzo del fotograma renderizado con marco elegante -->
+                <Border HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BoxShadow="0 14 36 0 #35000000"
+                        BorderBrush="{DynamicResource SystemControlHighlightListAccentLowBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        ClipToBounds="True"
+                        Background="{DynamicResource SystemRegionBrush}">
+                    
+                    <Image Source="{Binding CurrentSession.CurrentBitmap}"
+                           Width="{Binding CurrentSession.PreviewWidth}"
+                           Height="{Binding CurrentSession.PreviewHeight}"
+                           Stretch="None" />
+                </Border>
+            </paz:ZoomBorder>
+
+            <!-- OVERLAY DE CARGA -->
+            <Border IsVisible="{Binding IsLoading}"
+                    Background="#80000000"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch">
+                <Border Background="{DynamicResource SystemChromeMediumColor}"
+                        CornerRadius="8"
+                        Padding="24,18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BoxShadow="0 8 24 0 #40000000">
+                    <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                        <ProgressBar IsIndeterminate="True" Width="28" Height="28" />
+                        <TextBlock Text="{Binding LoadingMessage}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   FontSize="14" />
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- BANNER DE ERROR (XAML / Build) -->
+            <Border IsVisible="{Binding HasError}"
+                    Background="#E6D32F2F"
+                    CornerRadius="6"
+                    Margin="16"
+                    Padding="16,12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom"
+                    BoxShadow="0 4 16 0 #30000000">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <PathIcon Grid.Column="0"
+                              Data="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"
+                              Foreground="White" Width="20" Height="20" Margin="0,0,12,0" />
+                    
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ErrorMessage}"
+                               Foreground="White"
+                               FontWeight="Medium"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+
+                    <Button Grid.Column="2"
+                            Command="{Binding DismissErrorCommand}"
+                            Background="Transparent"
+                            Foreground="White"
+                            Padding="8,4"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="✕" FontSize="14" FontWeight="Bold" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ERROR ESPECÍFICO DE XAML -->
+            <Border IsVisible="{Binding CurrentSession.HasXamlError, FallbackValue=False}"
+                    Background="#E6D32F2F"
+                    CornerRadius="6"
+                    Margin="16"
+                    Padding="16,12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom"
+                    BoxShadow="0 4 16 0 #30000000">
+                <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"
+                                  Foreground="White" Width="16" Height="16" />
+                        <TextBlock Text="Error en sintaxis o ejecución de XAML:"
+                                   FontWeight="Bold" Foreground="White" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding CurrentSession.XamlError}"
+                               Foreground="White" TextWrapping="Wrap" FontSize="13" />
+                    <TextBlock Text="{Binding CurrentSession.XamlErrorDetails}"
+                               Foreground="#FFDDDD" FontSize="11"
+                               IsVisible="{Binding CurrentSession.XamlErrorDetails, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+
+        </Panel>
+
+        <!-- ================= BARRA DE ESTADO ================= -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemChromeLowColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,1,0,0"
+                Padding="12,4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                
+                <!-- Estado izquierdo -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8"
+                             Fill="{Binding CurrentSession.IsHotReloadActive, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=#2ECC71}" />
+                    <TextBlock Text="{Binding CurrentSession.Status, FallbackValue='Listo'}"
+                               Foreground="{DynamicResource SystemBaseMediumColor}"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Archivo y proyecto central -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding CurrentSession.Target.HostProjectPath}"
+                           Foreground="{DynamicResource SystemBaseLowColor}"
+                           FontSize="11"
+                           TextAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           Margin="16,0" />
+
+                <!-- Información derecha: Resolución y Zoom -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CurrentSession.DimensionsText}"
+                               FontSize="12"
+                               Foreground="{DynamicResource SystemBaseMediumColor}"
+                               IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    
+                    <TextBlock Text="{Binding CurrentSession.ZoomText}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemAccentColor}"
+                               IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

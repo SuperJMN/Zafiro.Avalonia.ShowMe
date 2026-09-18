@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -9,12 +9,32 @@
     
     <!-- Tool packaging -->
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>zafiro-showme</ToolCommandName>
+    <ToolCommandName>zafiro-avalonia-showme</ToolCommandName>
     <PackageId>Zafiro.Avalonia.ShowMe</PackageId>
     <Title>Zafiro.Avalonia.ShowMe</Title>
+    <Version>1.0.0</Version>
     <Description>CLI and GUI previewer for arbitrary Avalonia XAML using the host app context and official previewer.</Description>
     <Authors>SuperJMN</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/SuperJMN/Zafiro.Avalonia.ShowMe</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SuperJMN/Zafiro.Avalonia.ShowMe.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>avalonia;xaml;previewer;design-time;tool;zafiro</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RollForward>Major</RollForward>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <Target Name="RemoveSymbolsFromToolPackage" BeforeTargets="PackTool">
+    <ItemGroup>
+      <_ToolPackageSymbols Include="$(PublishDir)**/*.pdb" />
+    </ItemGroup>
+
+    <Delete Files="@(_ToolPackageSymbols)" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />

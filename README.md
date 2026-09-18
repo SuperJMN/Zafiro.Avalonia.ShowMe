@@ -26,8 +26,21 @@ Aplicación y herramienta CLI para previsualizar XAML/AXAML arbitrario de otras 
   - Observa el archivo AXAML en disco con `FileSystemWatcher`.
   - Al guardar cambios en tu editor (VS Code, Rider, etc.), la vista previa se actualiza instantáneamente sin reiniciar el proceso.
 - **Línea de Comandos (CLI) & GUI:**
-  - Invocable directamente desde la terminal con la ruta de un archivo `.axaml` o `.xaml`.
+  - Instalable como herramienta global de .NET (`dotnet tool install -g Zafiro.Avalonia.ShowMe`).
+  - Ejecutable directamente como `zafiro-avalonia-showme [archivo.axaml]`.
   - Zona de arrastrar y soltar (Drag & Drop) cuando se inicia sin argumentos.
+
+---
+
+## 📦 Instalación como .NET Tool
+
+```bash
+# Instalación global desde NuGet
+dotnet tool install -g Zafiro.Avalonia.ShowMe
+
+# O actualización a la última versión
+dotnet tool update -g Zafiro.Avalonia.ShowMe
+```
 
 ---
 
@@ -35,16 +48,16 @@ Aplicación y herramienta CLI para previsualizar XAML/AXAML arbitrario de otras 
 
 ```bash
 # Previsualizar un archivo AXAML directamente
-dotnet run --project src/Zafiro.Avalonia.ShowMe -- ruta/al/archivo.axaml
+zafiro-avalonia-showme ruta/al/archivo.axaml
 
-# Especificar tema inicial
-dotnet run --project src/Zafiro.Avalonia.ShowMe -- ruta/al/archivo.axaml --theme Dark
+# Especificar tema inicial ('Default', 'Light', 'Dark')
+zafiro-avalonia-showme ruta/al/archivo.axaml --theme Dark
 
 # Especificar resolución inicial del viewport
-dotnet run --project src/Zafiro.Avalonia.ShowMe -- ruta/al/archivo.axaml -w 1280 -h 800
+zafiro-avalonia-showme ruta/al/archivo.axaml -w 1280 -h 800
 
 # Ver ayuda de opciones
-dotnet run --project src/Zafiro.Avalonia.ShowMe -- --help
+zafiro-avalonia-showme --help
 ```
 
 ---

@@ -58,7 +58,7 @@ public sealed record CommandLineArgs(
             Zafiro.Avalonia.ShowMe - Avalonia XAML Previewer
             
             Uso:
-              zafiro-showme [ruta-al-archivo-axaml] [opciones]
+              zafiro-avalonia-showme [ruta-al-archivo-axaml] [opciones]
             
             Argumentos:
               ruta-al-archivo-axaml   Ruta al archivo .axaml o .xaml a previsualizar.
@@ -71,9 +71,9 @@ public sealed record CommandLineArgs(
               -?, -h, --help          Muestra esta ayuda.
             
             Ejemplos:
-              zafiro-showme src/MyApp/Views/MainView.axaml
-              zafiro-showme src/MyApp/Views/DetailView.axaml --theme Dark
-              zafiro-showme MainWindow.axaml -w 1280 -h 720
+              zafiro-avalonia-showme src/MyApp/Views/MainView.axaml
+              zafiro-avalonia-showme src/MyApp/Views/DetailView.axaml --theme Dark
+              zafiro-avalonia-showme MainWindow.axaml -w 1280 -h 720
             """);
     }
 }

@@ -8,3 +8,4 @@ obj/
 *.DotSettings.user
 *.nupkg
 *.snupkg
+artifacts/

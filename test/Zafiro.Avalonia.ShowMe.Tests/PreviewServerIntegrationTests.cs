@@ -141,6 +141,7 @@ public class PreviewServerIntegrationTests
         Assert.NotNull(frame);
         Assert.True(frame.Width > 0);
         Assert.True(frame.Height > 0);
+        Assert.Equal(ShowMePixelFormat.Rgba8888, frame.Format);
 
         var hitTcs = new TaskCompletionSource<HitTestResponseMessage>();
         server.HitTestResultReceived += res => hitTcs.TrySetResult(res);

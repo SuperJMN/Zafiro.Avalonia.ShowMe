@@ -346,6 +346,9 @@ public sealed class ShowMeHostService
             if (frame == null) return;
 
             using var fb = frame.Lock();
+            var format = fb.Format == global::Avalonia.Platform.PixelFormat.Bgra8888
+                ? ShowMePixelFormat.Bgra8888
+                : ShowMePixelFormat.Rgba8888;
             var stride = fb.RowBytes;
             var byteCount = stride * frame.PixelSize.Height;
             var buffer = new byte[byteCount];
@@ -356,7 +359,7 @@ public sealed class ShowMeHostService
                 await sendLock.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    await ShowMeFraming.WriteFrameAsync(stream, frame.PixelSize.Width, frame.PixelSize.Height, stride, buffer).ConfigureAwait(false);
+                    await ShowMeFraming.WriteFrameAsync(stream, frame.PixelSize.Width, frame.PixelSize.Height, stride, buffer, format).ConfigureAwait(false);
                 }
                 finally
                 {

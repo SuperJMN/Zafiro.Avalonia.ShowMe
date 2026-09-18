@@ -5,11 +5,18 @@ using System.Text.Json;
 
 namespace Zafiro.Avalonia.ShowMe.Protocol;
 
+public enum ShowMePixelFormat : byte
+{
+    Rgba8888 = 0,
+    Bgra8888 = 1,
+}
+
 public record ShowMeFramePacket(
     int Width,
     int Height,
     int Stride,
-    byte[] PixelData
+    byte[] PixelData,
+    ShowMePixelFormat Format = ShowMePixelFormat.Rgba8888
 );
 
 public static class ShowMeFraming
@@ -32,14 +39,15 @@ public static class ShowMeFraming
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    public static async Task WriteFrameAsync(Stream stream, int width, int height, int stride, byte[] pixels, CancellationToken ct = default)
+    public static async Task WriteFrameAsync(Stream stream, int width, int height, int stride, byte[] pixels, ShowMePixelFormat format = ShowMePixelFormat.Rgba8888, CancellationToken ct = default)
     {
-        var header = new byte[17];
+        var header = new byte[18];
         header[0] = (byte)ShowMePacketType.Frame;
         BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(1, 4), width);
         BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(5, 4), height);
         BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(9, 4), stride);
-        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(13, 4), pixels.Length);
+        header[13] = (byte)format;
+        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(14, 4), pixels.Length);
 
         await stream.WriteAsync(header, ct).ConfigureAwait(false);
         await stream.WriteAsync(pixels, ct).ConfigureAwait(false);
@@ -75,7 +83,7 @@ public static class ShowMeFraming
         }
         else if (packetType == ShowMePacketType.Frame)
         {
-            var metaBuffer = new byte[16];
+            var metaBuffer = new byte[17];
             if (!await ReadExactAsync(stream, metaBuffer, ct).ConfigureAwait(false))
             {
                 return null;
@@ -84,7 +92,8 @@ public static class ShowMeFraming
             var width = BinaryPrimitives.ReadInt32LittleEndian(metaBuffer.AsSpan(0, 4));
             var height = BinaryPrimitives.ReadInt32LittleEndian(metaBuffer.AsSpan(4, 4));
             var stride = BinaryPrimitives.ReadInt32LittleEndian(metaBuffer.AsSpan(8, 4));
-            var length = BinaryPrimitives.ReadInt32LittleEndian(metaBuffer.AsSpan(12, 4));
+            var format = (ShowMePixelFormat)metaBuffer[12];
+            var length = BinaryPrimitives.ReadInt32LittleEndian(metaBuffer.AsSpan(13, 4));
 
             var pixels = new byte[length];
             if (!await ReadExactAsync(stream, pixels, ct).ConfigureAwait(false))
@@ -92,7 +101,7 @@ public static class ShowMeFraming
                 return null;
             }
 
-            return new ShowMeFramePacket(width, height, stride, pixels);
+            return new ShowMeFramePacket(width, height, stride, pixels, format);
         }
 
         throw new InvalidOperationException($"Tipo de paquete ShowMe desconocido: {packetType}");

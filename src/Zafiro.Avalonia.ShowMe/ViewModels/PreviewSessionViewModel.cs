@@ -410,15 +410,30 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             try
             {
+                var pixelFormat = frame.Format == ShowMePixelFormat.Bgra8888
+                    ? global::Avalonia.Platform.PixelFormat.Bgra8888
+                    : global::Avalonia.Platform.PixelFormat.Rgba8888;
+
                 var bitmap = new WriteableBitmap(
                     new PixelSize(frame.Width, frame.Height),
                     new Vector(96, 96),
-                    global::Avalonia.Platform.PixelFormat.Bgra8888,
+                    pixelFormat,
                     AlphaFormat.Premul);
 
                 using (var locked = bitmap.Lock())
                 {
-                    Marshal.Copy(frame.PixelData, 0, locked.Address, frame.PixelData.Length);
+                    if (locked.RowBytes == frame.Stride)
+                    {
+                        Marshal.Copy(frame.PixelData, 0, locked.Address, frame.PixelData.Length);
+                    }
+                    else
+                    {
+                        var minStride = Math.Min(locked.RowBytes, frame.Stride);
+                        for (int y = 0; y < frame.Height; y++)
+                        {
+                            Marshal.Copy(frame.PixelData, y * frame.Stride, locked.Address + (y * locked.RowBytes), minStride);
+                        }
+                    }
                 }
 
                 CurrentBitmap = bitmap;

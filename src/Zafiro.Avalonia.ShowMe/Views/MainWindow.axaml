@@ -9,6 +9,7 @@
         x:Class="Zafiro.Avalonia.ShowMe.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Zafiro ShowMe - Previsualizador XAML"
+        Icon="/Assets/icon.png"
         Width="1200" Height="800"
         WindowStartupLocation="CenterScreen">
 

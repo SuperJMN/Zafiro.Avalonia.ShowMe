@@ -1,4 +1,8 @@
-# Zafiro.Avalonia.ShowMe
+<div align="center">
+  <img src="assets/icon.png" width="128" height="128" alt="Zafiro.Avalonia.ShowMe Icon" />
+  <h1>Zafiro.Avalonia.ShowMe</h1>
+  <p><strong>Previsualizador interactivo para vistas y controles de Avalonia UI</strong></p>
+</div>
 
 Aplicación y herramienta CLI para previsualizar XAML/AXAML arbitrario de otras aplicaciones Avalonia en su propio contexto de ejecución, utilizando el **Avalonia Previewer oficial** (`Avalonia.Designer.HostApp`) alojado dentro de un control **PanAndZoom**.
 
@@ -86,3 +90,9 @@ Zafiro.Avalonia.ShowMe/
 │       └── MainWindow.axaml.cs        # Drag & Drop y eventos de zoom
 └── test/Zafiro.Avalonia.ShowMe.Tests/ # Pruebas unitarias e integración
 ```
+
+---
+
+## 📜 Atribuciones
+
+- Icono de la aplicación: [Surprise icon](https://www.flaticon.com/free-icon/surprise_3656962) creado por [Magnific](https://www.flaticon.com/authors/magnific) desde [Flaticon](https://www.flaticon.com/).

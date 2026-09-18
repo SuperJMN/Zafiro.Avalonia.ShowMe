@@ -20,11 +20,13 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>avalonia;xaml;previewer;design-time;tool;zafiro</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <Target Name="RemoveSymbolsFromToolPackage" BeforeTargets="PackTool">

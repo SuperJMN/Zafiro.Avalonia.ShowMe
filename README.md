@@ -46,6 +46,14 @@ dotnet tool install -g Zafiro.Avalonia.ShowMe
 dotnet tool update -g Zafiro.Avalonia.ShowMe
 ```
 
+### 🖥️ Integración con el escritorio (Linux / GNOME / COSMIC / KDE)
+
+Para asociar archivos `.axaml` y `.xaml` y poder abrirlos directamente con doble clic o menú contextual del gestor de archivos con el icono de la aplicación:
+
+```bash
+./scripts/register-desktop-integration.sh
+```
+
 ---
 
 ## 🚀 Uso desde la Línea de Comandos (CLI)

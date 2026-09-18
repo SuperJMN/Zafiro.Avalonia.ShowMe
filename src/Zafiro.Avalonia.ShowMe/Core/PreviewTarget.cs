@@ -5,6 +5,7 @@ public sealed record PreviewTarget(
     string ContainingProjectPath,
     string HostProjectPath,
     string TargetAssemblyPath,
+    string XamlAssemblyPath,
     string TargetDirectory,
     string TargetName,
     string DesignerHostPath,

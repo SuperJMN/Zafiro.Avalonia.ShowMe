@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Zafiro.Avalonia.ShowMe.ViewModels;
 
 namespace Zafiro.Avalonia.ShowMe.Views;
@@ -64,9 +65,23 @@ public partial class MainWindow : Window
             UpdateZoomText(session);
         };
 
+        bool initialFitDone = false;
+        session.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(PreviewSessionViewModel.CurrentBitmap) && !initialFitDone && session.CurrentBitmap != null)
+            {
+                initialFitDone = true;
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    ZoomBorder?.AutoFit();
+                    UpdateZoomText(session);
+                }, DispatcherPriority.Loaded);
+            }
+        };
+
         if (ZoomBorder != null)
         {
-            ZoomBorder.PointerWheelChanged += (_, _) =>
+            ZoomBorder.ZoomChanged += (_, _) =>
             {
                 UpdateZoomText(session);
             };

@@ -227,7 +227,7 @@ public sealed class PreviewServer : IDisposable
             connection.Send(new UpdateXamlMessage
             {
                 Xaml = processedXaml,
-                AssemblyPath = target.TargetAssemblyPath,
+                AssemblyPath = target.XamlAssemblyPath,
                 XamlFileProjectPath = target.RelativeXamlPath
             });
         }

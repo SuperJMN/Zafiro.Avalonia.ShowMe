@@ -107,13 +107,19 @@ public sealed class PreviewTargetResolver
                 }
             }
 
-            // 7. Calcular ruta relativa del XAML
-            var relativeXamlPath = Path.GetRelativePath(projectDir, fullAxamlPath)
+            // 7. Calcular ruta relativa del XAML (relativa a su proyecto contenedor)
+            var containingProjectDir = Path.GetDirectoryName(containingProjectPath) ?? projectDir;
+            var relativeXamlPath = Path.GetRelativePath(containingProjectDir, fullAxamlPath)
                 .Replace('\\', '/');
             if (!relativeXamlPath.StartsWith('/'))
             {
                 relativeXamlPath = "/" + relativeXamlPath;
             }
+
+            // Determinar el ensamblado que contiene el XAML
+            var containingProjectName = Path.GetFileNameWithoutExtension(containingProjectPath);
+            var candidateXamlAssembly = Path.Combine(targetDir, containingProjectName + ".dll");
+            var xamlAssemblyPath = File.Exists(candidateXamlAssembly) ? candidateXamlAssembly : targetPath;
 
             // 8. Extraer dimensiones de diseño del XAML si existen
             var (initialWidth, initialHeight) = ExtractDesignDimensions(fullAxamlPath);
@@ -123,6 +129,7 @@ public sealed class PreviewTargetResolver
                 containingProjectPath,
                 hostProjectPath,
                 targetPath,
+                xamlAssemblyPath,
                 targetDir,
                 targetName,
                 designerHostPath,

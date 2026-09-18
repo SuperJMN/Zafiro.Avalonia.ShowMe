@@ -34,4 +34,27 @@ public class PreviewTargetResolverTests
         Assert.Equal(900, target.InitialWidth);
         Assert.Equal(650, target.InitialHeight);
     }
+
+    [Fact]
+    public async Task Resolves_Proteus_DevicesView()
+    {
+        var proteusAxaml = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Pages/Service/DevicesView.axaml";
+        if (!File.Exists(proteusAxaml))
+        {
+            return;
+        }
+
+        var result = await PreviewTargetResolver.ResolveAsync(proteusAxaml);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error : "");
+        var target = result.Value;
+
+        Assert.Equal("Proteus.Ui", target.TargetName);
+        Assert.True(File.Exists(target.TargetAssemblyPath));
+        Assert.True(File.Exists(target.XamlAssemblyPath));
+        Assert.True(File.Exists(target.DesignerHostPath));
+        Assert.Equal("/Service/DevicesView.axaml", target.RelativeXamlPath);
+        Assert.Equal(600, target.InitialWidth);
+        Assert.Equal(960, target.InitialHeight);
+    }
 }

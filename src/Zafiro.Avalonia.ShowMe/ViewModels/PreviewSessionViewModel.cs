@@ -30,7 +30,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private string status = "Iniciando sesión...";
 
     private bool isResizing;
-    private DateTime lastViewportUpdateTime = DateTime.MinValue;
+    private bool hasUserSetDimensions;
+    private CancellationTokenSource? dragDebounceCts;
     private DimensionPreset? selectedPreset;
 
     public event Action? RequestZoomIn;
@@ -213,25 +214,35 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public void OnResizeDrag(double width, double height)
     {
         IsResizing = true;
+        hasUserSetDimensions = true;
         PreviewWidth = Math.Round(Math.Clamp(width, 100, 4096));
         PreviewHeight = Math.Round(Math.Clamp(height, 100, 4096));
 
-        var now = DateTime.UtcNow;
-        if ((now - lastViewportUpdateTime).TotalMilliseconds >= 75)
+        dragDebounceCts?.Cancel();
+        dragDebounceCts = new CancellationTokenSource();
+        var token = dragDebounceCts.Token;
+
+        Task.Delay(300, token).ContinueWith(t =>
         {
-            lastViewportUpdateTime = now;
-            server.SetViewportSize(PreviewWidth, PreviewHeight);
-        }
+            if (!t.IsCanceled)
+            {
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() => server.SetViewportSize(PreviewWidth, PreviewHeight));
+            }
+        }, TaskScheduler.Default);
     }
 
     public void OnResizeDragCompleted()
     {
+        dragDebounceCts?.Cancel();
         IsResizing = false;
+        hasUserSetDimensions = true;
         server.SetViewportSize(PreviewWidth, PreviewHeight);
     }
 
     public void SetCustomDimensions(double width, double height)
     {
+        dragDebounceCts?.Cancel();
+        hasUserSetDimensions = true;
         PreviewWidth = Math.Round(Math.Clamp(width, 100, 4096));
         PreviewHeight = Math.Round(Math.Clamp(height, 100, 4096));
         server.SetViewportSize(PreviewWidth, PreviewHeight);
@@ -239,6 +250,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     public void ResetDimensions()
     {
+        dragDebounceCts?.Cancel();
+        hasUserSetDimensions = false;
         var targetW = Target.InitialWidth ?? 800;
         var targetH = Target.InitialHeight ?? 600;
         PreviewWidth = targetW;
@@ -291,7 +304,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 }
 
                 CurrentBitmap = bitmap;
-                if (!IsResizing)
+                if (!hasUserSetDimensions && !IsResizing)
                 {
                     PreviewWidth = frame.Width;
                     PreviewHeight = frame.Height;

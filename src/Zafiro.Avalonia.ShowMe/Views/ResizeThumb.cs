@@ -3,9 +3,8 @@ using Avalonia.Controls.PanAndZoom;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.VisualTree;
-using Zafiro.Avalonia.ShowMe.ViewModels;
-
 using Avalonia.Metadata;
+using Zafiro.Avalonia.ShowMe.ViewModels;
 
 namespace Zafiro.Avalonia.ShowMe.Views;
 
@@ -24,6 +23,9 @@ public class ResizeThumb : Thumb
     public static readonly StyledProperty<object?> ContentProperty =
         AvaloniaProperty.Register<ResizeThumb, object?>(nameof(Content));
 
+    public static readonly StyledProperty<PreviewSessionViewModel?> SessionProperty =
+        AvaloniaProperty.Register<ResizeThumb, PreviewSessionViewModel?>(nameof(Session));
+
     public ResizeDirection Direction
     {
         get => GetValue(DirectionProperty);
@@ -37,6 +39,12 @@ public class ResizeThumb : Thumb
         set => SetValue(ContentProperty, value);
     }
 
+    public PreviewSessionViewModel? Session
+    {
+        get => GetValue(SessionProperty);
+        set => SetValue(SessionProperty, value);
+    }
+
     private Point? startPointerInParent;
     private double startWidth;
     private double startHeight;
@@ -48,7 +56,7 @@ public class ResizeThumb : Thumb
         explicitSession = session;
     }
 
-    private PreviewSessionViewModel? Session => explicitSession ?? DataContext as PreviewSessionViewModel;
+    private PreviewSessionViewModel? ResolveSession() => Session ?? explicitSession ?? DataContext as PreviewSessionViewModel;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -59,7 +67,7 @@ public class ResizeThumb : Thumb
             return;
         }
 
-        var session = Session;
+        var session = ResolveSession();
         if (session == null)
         {
             return;
@@ -71,6 +79,9 @@ public class ResizeThumb : Thumb
         {
             return;
         }
+
+        e.Pointer.Capture(this);
+        e.Handled = true;
 
         startPointerInParent = e.GetPosition(parentReference);
         startWidth = session.PreviewWidth;
@@ -87,11 +98,13 @@ public class ResizeThumb : Thumb
             return;
         }
 
-        var session = Session;
+        var session = ResolveSession();
         if (session == null)
         {
             return;
         }
+
+        e.Handled = true;
 
         var currentPos = e.GetPosition(parentReference);
         var zoomBorder = parentReference as ZoomBorder;
@@ -120,6 +133,8 @@ public class ResizeThumb : Thumb
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        e.Pointer.Capture(null);
+        e.Handled = true;
         CompleteResize();
     }
 
@@ -135,7 +150,7 @@ public class ResizeThumb : Thumb
         {
             startPointerInParent = null;
             parentReference = null;
-            Session?.OnResizeDragCompleted();
+            ResolveSession()?.OnResizeDragCompleted();
         }
     }
 }

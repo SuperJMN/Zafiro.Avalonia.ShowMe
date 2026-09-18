@@ -8,7 +8,9 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Diagnostics;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -237,11 +239,31 @@ public sealed class ShowMeHostService
             // Cargar control mediante AvaloniaRuntimeXamlLoader
             var loaded = AvaloniaRuntimeXamlLoader.Load(xaml, targetAssembly, null, null, true);
 
+            if (!string.IsNullOrEmpty(theme))
+            {
+                if (string.Equals(theme, "Dark", StringComparison.OrdinalIgnoreCase))
+                {
+                    window.RequestedThemeVariant = ThemeVariant.Dark;
+                }
+                else if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase))
+                {
+                    window.RequestedThemeVariant = ThemeVariant.Light;
+                }
+                else if (string.Equals(theme, "Default", StringComparison.OrdinalIgnoreCase))
+                {
+                    window.RequestedThemeVariant = ThemeVariant.Default;
+                }
+            }
+
             if (loaded is Window userWindow)
             {
                 var content = userWindow.Content;
                 userWindow.Content = null;
                 window.Content = content;
+                if (userWindow.Background != null)
+                {
+                    window.Background = userWindow.Background;
+                }
                 foreach (var res in userWindow.Resources)
                 {
                     window.Resources[res.Key] = res.Value;
@@ -258,6 +280,42 @@ public sealed class ShowMeHostService
             else if (loaded != null)
             {
                 window.Content = new ContentControl { Content = loaded };
+            }
+
+            if (window.Content is Control rootControl)
+            {
+                if (rootControl.DataContext == null)
+                {
+                    var designDc = Design.GetDataContext(rootControl);
+                    if (designDc != null)
+                    {
+                        rootControl.DataContext = designDc;
+                    }
+                }
+            }
+
+            if (loaded is not Window && Application.Current != null)
+            {
+                var currentVariant = window.ActualThemeVariant ?? Application.Current.ActualThemeVariant;
+                if (Application.Current.Resources.TryGetResource("GradientBackgroundRadialGradient", currentVariant, out var radialBg) && radialBg is IBrush radialBrush)
+                {
+                    window.Background = radialBrush;
+                }
+                else if (window.Background == null && Application.Current.Resources.TryGetResource("ThemeBackgroundBrush", currentVariant, out var themeBg) && themeBg is IBrush themeBrush)
+                {
+                    window.Background = themeBrush;
+                }
+            }
+
+            if (Application.Current != null)
+            {
+                foreach (var dt in Application.Current.DataTemplates)
+                {
+                    if (!window.DataTemplates.Contains(dt))
+                    {
+                        window.DataTemplates.Add(dt);
+                    }
+                }
             }
 
             window.InvalidateMeasure();
@@ -584,6 +642,7 @@ public sealed class ShowMeHostService
 
             if (appType != null && Application.Current != null)
             {
+                Console.WriteLine($"[Host] Encontrada clase Application: {appType.FullName}");
                 if (Activator.CreateInstance(appType) is Application targetApp)
                 {
                     try
@@ -592,8 +651,10 @@ public sealed class ShowMeHostService
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[Host] Aviso al inicializar Application destino ({appType.FullName}): {ex.Message}");
+                        Console.WriteLine($"[Host] Aviso al inicializar Application destino ({appType.FullName}): {ex}");
                     }
+
+                    Console.WriteLine($"[Host] targetApp inicializado. Styles={targetApp.Styles.Count}, Resources={targetApp.Resources.Count}, MergedDicts={(targetApp.Resources is ResourceDictionary r ? r.MergedDictionaries.Count : 0)}");
 
                     var hasFluentTheme = Application.Current.Styles.OfType<FluentTheme>().Any();
                     var stylesToMove = targetApp.Styles.ToList();
@@ -622,10 +683,14 @@ public sealed class ShowMeHostService
                         Application.Current.Resources[res.Key] = res.Value;
                     }
 
-                    foreach (var dt in targetApp.DataTemplates)
+                    var templatesToMove = targetApp.DataTemplates.ToList();
+                    targetApp.DataTemplates.Clear();
+                    foreach (var dt in templatesToMove)
                     {
                         Application.Current.DataTemplates.Add(dt);
                     }
+
+                    Console.WriteLine($"[Host] Application.Current actualizado. Styles={Application.Current.Styles.Count}, Resources={Application.Current.Resources.Count}, MergedDicts={(Application.Current.Resources is ResourceDictionary r2 ? r2.MergedDictionaries.Count : 0)}");
 
                     if (targetApp.ActualThemeVariant != null && targetApp.RequestedThemeVariant != null)
                     {

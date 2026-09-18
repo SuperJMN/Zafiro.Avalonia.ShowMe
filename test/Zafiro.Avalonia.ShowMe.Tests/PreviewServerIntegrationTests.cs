@@ -145,11 +145,13 @@ public class PreviewServerIntegrationTests
         var hitTcs = new TaskCompletionSource<HitTestResponseMessage>();
         server.HitTestResultReceived += res => hitTcs.TrySetResult(res);
 
-        server.RequestHitTest(50, 50);
+        server.RequestHitTest(480, 20);
         var hitCompleted = await Task.WhenAny(hitTcs.Task, Task.Delay(5000));
         Assert.Same(hitTcs.Task, hitCompleted);
         var hit = await hitTcs.Task;
         Assert.NotNull(hit);
         output.WriteLine($"[HitTest] Found={hit.Found}, Type={hit.TypeName}, Element={hit.ElementName}, Line={hit.LineNumber}");
+        Assert.True(hit.Properties.ContainsKey("FontSize"));
+        Assert.Equal("48", hit.Properties["FontSize"]);
     }
 }

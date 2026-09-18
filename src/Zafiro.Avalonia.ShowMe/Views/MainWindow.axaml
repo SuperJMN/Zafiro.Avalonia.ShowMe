@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:Zafiro.Avalonia.ShowMe.ViewModels"
+        xmlns:views="using:Zafiro.Avalonia.ShowMe.Views"
         xmlns:paz="using:Avalonia.Controls.PanAndZoom"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="750"
         x:Class="Zafiro.Avalonia.ShowMe.Views.MainWindow"
@@ -10,6 +11,88 @@
         Title="Zafiro ShowMe - Previsualizador XAML"
         Width="1200" Height="800"
         WindowStartupLocation="CenterScreen">
+
+    <Window.Styles>
+        <!-- Estilos para los Thumbs de redimensionamiento -->
+        <Style Selector="views|ResizeThumb">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch">
+                        <ContentPresenter Content="{TemplateBinding Content}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <!-- Vertical Thumb (Derecha) -->
+        <Style Selector="views|ResizeThumb.resize-thumb-v Border.grip-v">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeGrayColor}" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                    <DoubleTransition Property="Width" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-v:pointerover Border.grip-v">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Opacity" Value="1.0" />
+            <Setter Property="Width" Value="6" />
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-v:pressed Border.grip-v">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark1}" />
+            <Setter Property="Opacity" Value="1.0" />
+            <Setter Property="Width" Value="6" />
+        </Style>
+
+        <!-- Horizontal Thumb (Abajo) -->
+        <Style Selector="views|ResizeThumb.resize-thumb-h Border.grip-h">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeGrayColor}" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                    <DoubleTransition Property="Height" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-h:pointerover Border.grip-h">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Opacity" Value="1.0" />
+            <Setter Property="Height" Value="6" />
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-h:pressed Border.grip-h">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark1}" />
+            <Setter Property="Opacity" Value="1.0" />
+            <Setter Property="Height" Value="6" />
+        </Style>
+
+        <!-- Corner Thumb (Esquina inferior derecha) -->
+        <Style Selector="views|ResizeThumb.resize-thumb-c Border.grip-c">
+            <Setter Property="Background" Value="{DynamicResource SystemChromeGrayColor}" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-c:pointerover Border.grip-c">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Opacity" Value="1.0" />
+        </Style>
+        <Style Selector="views|ResizeThumb.resize-thumb-c:pressed Border.grip-c">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark1}" />
+            <Setter Property="Opacity" Value="1.0" />
+        </Style>
+    </Window.Styles>
 
     <Grid RowDefinitions="Auto,*,Auto">
         
@@ -97,6 +180,35 @@
                                     Command="{Binding CurrentSession.FitCommand}"
                                     ToolTip.Tip="Ajustar al área visible">
                                 <TextBlock Text="Ajustar" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Control de Tamaño y Presets de resolución -->
+                    <Border Background="{DynamicResource SystemChromeLowColor}" CornerRadius="4" Padding="2">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <!-- Selector de Presets -->
+                            <ComboBox ItemsSource="{Binding CurrentSession.Presets}"
+                                      SelectedItem="{Binding CurrentSession.SelectedPreset, Mode=TwoWay}"
+                                      PlaceholderText="Resolución..."
+                                      ToolTip.Tip="Elegir resolución predefinida"
+                                      Width="160">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DimensionPreset">
+                                        <TextBlock Text="{Binding DisplayText}" FontSize="12" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <!-- Botón Restablecer Tamaño a d:DesignWidth/Height -->
+                            <Button Classes="toolbar"
+                                    Command="{Binding CurrentSession.ResetDimensionsCommand}"
+                                    ToolTip.Tip="Restablecer al tamaño de diseño original (d:DesignWidth / d:DesignHeight)">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
+                                              Width="12" Height="12" />
+                                    <TextBlock Text="Original" FontSize="11" />
+                                </StackPanel>
                             </Button>
                         </StackPanel>
                     </Border>
@@ -213,21 +325,111 @@
                             VerticalAlignment="Stretch"
                             HorizontalAlignment="Stretch">
                 
-                <!-- Lienzo del fotograma renderizado con marco elegante -->
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        BoxShadow="0 14 36 0 #35000000"
-                        BorderBrush="{DynamicResource SystemControlHighlightListAccentLowBrush}"
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        ClipToBounds="True"
-                        Background="{DynamicResource SystemRegionBrush}">
+                <!-- Lienzo del fotograma renderizado con cabecera y thumbs de redimensionamiento -->
+                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
                     
-                    <Image Source="{Binding CurrentSession.CurrentBitmap}"
-                           Width="{Binding CurrentSession.PreviewWidth}"
-                           Height="{Binding CurrentSession.PreviewHeight}"
-                           Stretch="None" />
-                </Border>
+                    <!-- Fila 0, Col 0: Barra superior de la ventana de previsualización -->
+                    <Border Grid.Row="0" Grid.Column="0"
+                            Background="{DynamicResource SystemChromeLowColor}"
+                            BorderBrush="{DynamicResource SystemControlHighlightListAccentLowBrush}"
+                            BorderThickness="1,1,1,0"
+                            CornerRadius="6,6,0,0"
+                            Padding="10,5">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <PathIcon Data="M3,4H21A1,1 0 0,1 22,5V19A1,1 0 0,1 21,20H3A1,1 0 0,1 2,19V5A1,1 0 0,1 3,4M4,6V8H20V6H4M4,10V18H20V10H4Z"
+                                          Width="12" Height="12"
+                                          Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                <TextBlock Text="{Binding CurrentSession.Target.RelativeXamlPath}"
+                                           FontSize="11"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource SystemBaseMediumColor}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <Border Grid.Column="2"
+                                    Background="{DynamicResource SystemChromeMediumColor}"
+                                    CornerRadius="3"
+                                    Padding="6,2">
+                                <TextBlock Text="{Binding CurrentSession.DimensionsText}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource SystemAccentColor}"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Fila 1, Col 0: Marco de la imagen renderizada -->
+                    <Border Grid.Row="1" Grid.Column="0"
+                            Width="{Binding CurrentSession.PreviewWidth}"
+                            Height="{Binding CurrentSession.PreviewHeight}"
+                            BoxShadow="0 14 36 0 #35000000"
+                            BorderBrush="{DynamicResource SystemControlHighlightListAccentLowBrush}"
+                            BorderThickness="1,0,1,1"
+                            CornerRadius="0,0,6,6"
+                            ClipToBounds="True"
+                            Background="{DynamicResource SystemRegionBrush}">
+                        
+                        <Image Source="{Binding CurrentSession.CurrentBitmap}"
+                               Width="{Binding CurrentSession.PreviewWidth}"
+                               Height="{Binding CurrentSession.PreviewHeight}"
+                               Stretch="None"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Top" />
+                    </Border>
+
+                    <!-- Fila 1, Col 1: Thumb Vertical (Derecha - Redimensionar Ancho) -->
+                    <views:ResizeThumb x:Name="RightThumb"
+                                       Grid.Row="1" Grid.Column="1"
+                                       Direction="Horizontal"
+                                       Classes="resize-thumb-v"
+                                       Cursor="SizeWestEast"
+                                       Width="12"
+                                       VerticalAlignment="Stretch"
+                                       ToolTip.Tip="Arrastrar para cambiar ancho (Width)"
+                                       Margin="2,0,0,0">
+                        <Border Classes="grip-v"
+                                Width="4" Height="48"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </views:ResizeThumb>
+
+                    <!-- Fila 2, Col 0: Thumb Horizontal (Abajo - Redimensionar Alto) -->
+                    <views:ResizeThumb x:Name="BottomThumb"
+                                       Grid.Row="2" Grid.Column="0"
+                                       Direction="Vertical"
+                                       Classes="resize-thumb-h"
+                                       Cursor="SizeNorthSouth"
+                                       Height="12"
+                                       HorizontalAlignment="Stretch"
+                                       ToolTip.Tip="Arrastrar para cambiar alto (Height)"
+                                       Margin="0,2,0,0">
+                        <Border Classes="grip-h"
+                                Height="4" Width="48"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </views:ResizeThumb>
+
+                    <!-- Fila 2, Col 1: Thumb Esquina (Inferior Derecha - Redimensionar Ambos) -->
+                    <views:ResizeThumb x:Name="CornerThumb"
+                                       Grid.Row="2" Grid.Column="1"
+                                       Direction="Both"
+                                       Classes="resize-thumb-c"
+                                       Cursor="BottomRightCorner"
+                                       Width="14" Height="14"
+                                       Margin="2,2,0,0"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Top"
+                                       ToolTip.Tip="Arrastrar para cambiar ancho y alto">
+                        <Border Classes="grip-c"
+                                Width="8" Height="8"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </views:ResizeThumb>
+                </Grid>
             </paz:ZoomBorder>
 
             <!-- OVERLAY DE CARGA -->

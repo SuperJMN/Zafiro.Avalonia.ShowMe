@@ -38,6 +38,51 @@ public sealed class DelegateCommand : ICommand
     }
 }
 
+public sealed class DelegateCommand<T> : ICommand
+{
+    private readonly Action<T?> execute;
+    private readonly Func<T?, bool>? canExecute;
+
+    public DelegateCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
+    {
+        this.execute = execute ?? throw new ArgumentNullException(nameof(execute));
+        this.canExecute = canExecute;
+    }
+
+    public event EventHandler? CanExecuteChanged;
+
+    public bool CanExecute(object? parameter)
+    {
+        if (canExecute == null) return true;
+        if (parameter is T typed) return canExecute(typed);
+        return canExecute(default);
+    }
+
+    public void Execute(object? parameter)
+    {
+        if (parameter is T typed)
+        {
+            execute(typed);
+        }
+        else
+        {
+            execute(default);
+        }
+    }
+
+    public void RaiseCanExecuteChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => CanExecuteChanged?.Invoke(this, EventArgs.Empty));
+        }
+    }
+}
+
 public sealed class AsyncDelegateCommand : ICommand
 {
     private readonly Func<Task> execute;

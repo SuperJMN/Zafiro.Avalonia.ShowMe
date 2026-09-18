@@ -41,6 +41,10 @@ public partial class MainWindow : Window
     {
         if (session == null) return;
 
+        RightThumb?.BindSession(session);
+        BottomThumb?.BindSession(session);
+        CornerThumb?.BindSession(session);
+
         session.RequestZoomIn += () =>
         {
             ZoomBorder?.ZoomIn();

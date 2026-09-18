@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Zafiro.Avalonia.ShowMe.Core;
@@ -10,12 +11,18 @@ public static class XamlThemeModifier
 
     public static string ApplyTheme(string xamlContent, string? theme)
     {
-        if (string.IsNullOrWhiteSpace(theme) || string.Equals(theme, ThemeDefault, StringComparison.OrdinalIgnoreCase))
+        return ApplyModifiers(xamlContent, theme, null, null);
+    }
+
+    public static string ApplyModifiers(string xamlContent, string? theme, double? customWidth, double? customHeight)
+    {
+        var hasCustomTheme = !string.IsNullOrWhiteSpace(theme) && !string.Equals(theme, ThemeDefault, StringComparison.OrdinalIgnoreCase);
+        var hasCustomDimensions = customWidth.HasValue && customHeight.HasValue && customWidth.Value > 0 && customHeight.Value > 0;
+
+        if (!hasCustomTheme && !hasCustomDimensions)
         {
             return xamlContent;
         }
-
-        var normalizedTheme = string.Equals(theme, ThemeDark, StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
 
         try
         {
@@ -28,50 +35,97 @@ public static class XamlThemeModifier
 
             var rootName = root.Name.LocalName;
 
-            // Si la raíz es Window o deriva de Window, podemos establecer RequestedThemeVariant directamente
-            if (rootName.EndsWith("Window", StringComparison.OrdinalIgnoreCase))
+            // 1. Modificar dimensiones si se especifican
+            if (hasCustomDimensions)
             {
-                root.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
-                return doc.ToString(SaveOptions.DisableFormatting);
-            }
+                XNamespace d = "http://schemas.microsoft.com/expression/blend/2008";
+                XNamespace mc = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
-            // Si es un UserControl u otro Control, envolver el contenido interior en ThemeVariantScope
-            // o verificar si ya tiene ThemeVariantScope como hijo raíz
-            var avaloniaNs = root.GetDefaultNamespace();
-            if (string.IsNullOrWhiteSpace(avaloniaNs.NamespaceName))
-            {
-                avaloniaNs = XNamespace.Get("https://github.com/avaloniaui");
-            }
-
-            var themeScopeName = avaloniaNs + "ThemeVariantScope";
-
-            // Si el único elemento hijo es ThemeVariantScope, actualizarlo
-            var firstChildElement = root.Elements().FirstOrDefault(e => !e.Name.LocalName.Contains('.'));
-            if (firstChildElement != null && firstChildElement.Name.LocalName == "ThemeVariantScope")
-            {
-                firstChildElement.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
-                return doc.ToString(SaveOptions.DisableFormatting);
-            }
-
-            // Si no, envolver los elementos de contenido (excluyendo propiedades adjuntas como UserControl.Resources)
-            var contentElements = root.Elements().Where(e => !e.Name.LocalName.Contains('.')).ToList();
-            if (contentElements.Count > 0)
-            {
-                var scopeElement = new XElement(themeScopeName,
-                    new XAttribute("RequestedThemeVariant", normalizedTheme),
-                    contentElements);
-
-                foreach (var elem in contentElements)
+                // Asegurar que el prefijo xmlns:d esté declarado
+                if (root.Attributes().All(a => a.Value != d.NamespaceName))
                 {
-                    elem.Remove();
+                    root.Add(new XAttribute(XNamespace.Xmlns + "d", d.NamespaceName));
                 }
 
-                root.Add(scopeElement);
-                return doc.ToString(SaveOptions.DisableFormatting);
+                // Asegurar que mc:Ignorable incluya "d"
+                var mcIgnorableAttr = root.Attribute(mc + "Ignorable");
+                if (mcIgnorableAttr == null)
+                {
+                    if (root.Attributes().All(a => a.Value != mc.NamespaceName))
+                    {
+                        root.Add(new XAttribute(XNamespace.Xmlns + "mc", mc.NamespaceName));
+                    }
+                    root.SetAttributeValue(mc + "Ignorable", "d");
+                }
+                else if (!mcIgnorableAttr.Value.Split(' ').Contains("d"))
+                {
+                    mcIgnorableAttr.Value = (mcIgnorableAttr.Value + " d").Trim();
+                }
+
+                var widthStr = Math.Round(customWidth!.Value).ToString(CultureInfo.InvariantCulture);
+                var heightStr = Math.Round(customHeight!.Value).ToString(CultureInfo.InvariantCulture);
+
+                root.SetAttributeValue(d + "DesignWidth", widthStr);
+                root.SetAttributeValue(d + "DesignHeight", heightStr);
+
+                // Si es un Window, actualizar también Width y Height directamente
+                if (rootName.EndsWith("Window", StringComparison.OrdinalIgnoreCase))
+                {
+                    root.SetAttributeValue("Width", widthStr);
+                    root.SetAttributeValue("Height", heightStr);
+                }
             }
 
-            // Fallback: intentar establecer RequestedThemeVariant en la raíz
-            root.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
+            // 2. Modificar tema si se especifica
+            if (hasCustomTheme)
+            {
+                var normalizedTheme = string.Equals(theme, ThemeDark, StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
+
+                // Si la raíz es Window o deriva de Window, podemos establecer RequestedThemeVariant directamente
+                if (rootName.EndsWith("Window", StringComparison.OrdinalIgnoreCase))
+                {
+                    root.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
+                    return doc.ToString(SaveOptions.DisableFormatting);
+                }
+
+                // Si es un UserControl u otro Control, envolver el contenido interior en ThemeVariantScope
+                var avaloniaNs = root.GetDefaultNamespace();
+                if (string.IsNullOrWhiteSpace(avaloniaNs.NamespaceName))
+                {
+                    avaloniaNs = XNamespace.Get("https://github.com/avaloniaui");
+                }
+
+                var themeScopeName = avaloniaNs + "ThemeVariantScope";
+
+                // Si el primer elemento hijo no-propiedad ya es ThemeVariantScope, actualizarlo
+                var firstChildElement = root.Elements().FirstOrDefault(e => !e.Name.LocalName.Contains('.'));
+                if (firstChildElement != null && firstChildElement.Name.LocalName == "ThemeVariantScope")
+                {
+                    firstChildElement.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
+                    return doc.ToString(SaveOptions.DisableFormatting);
+                }
+
+                // Si no, envolver los elementos de contenido (excluyendo propiedades adjuntas como UserControl.Resources)
+                var contentElements = root.Elements().Where(e => !e.Name.LocalName.Contains('.')).ToList();
+                if (contentElements.Count > 0)
+                {
+                    var scopeElement = new XElement(themeScopeName,
+                        new XAttribute("RequestedThemeVariant", normalizedTheme),
+                        contentElements);
+
+                    foreach (var elem in contentElements)
+                    {
+                        elem.Remove();
+                    }
+
+                    root.Add(scopeElement);
+                    return doc.ToString(SaveOptions.DisableFormatting);
+                }
+
+                // Fallback: intentar establecer RequestedThemeVariant en la raíz
+                root.SetAttributeValue("RequestedThemeVariant", normalizedTheme);
+            }
+
             return doc.ToString(SaveOptions.DisableFormatting);
         }
         catch

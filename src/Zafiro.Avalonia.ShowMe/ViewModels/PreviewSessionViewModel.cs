@@ -29,6 +29,10 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private string currentTheme = XamlThemeModifier.ThemeDefault;
     private string status = "Iniciando sesión...";
 
+    private bool isResizing;
+    private DateTime lastViewportUpdateTime = DateTime.MinValue;
+    private DimensionPreset? selectedPreset;
+
     public event Action? RequestZoomIn;
     public event Action? RequestZoomOut;
     public event Action? RequestResetZoom;
@@ -45,13 +49,27 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public double PreviewWidth
     {
         get => previewWidth;
-        private set => this.RaiseAndSetIfChanged(ref previewWidth, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref previewWidth, value);
+            this.RaisePropertyChanged(nameof(DimensionsText));
+        }
     }
 
     public double PreviewHeight
     {
         get => previewHeight;
-        private set => this.RaiseAndSetIfChanged(ref previewHeight, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref previewHeight, value);
+            this.RaisePropertyChanged(nameof(DimensionsText));
+        }
+    }
+
+    public bool IsResizing
+    {
+        get => isResizing;
+        set => this.RaiseAndSetIfChanged(ref isResizing, value);
     }
 
     public string ZoomText
@@ -99,6 +117,21 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     public string DimensionsText => $"{PreviewWidth:F0} × {PreviewHeight:F0} px";
 
+    public IReadOnlyList<DimensionPreset> Presets { get; }
+
+    public DimensionPreset? SelectedPreset
+    {
+        get => selectedPreset;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref selectedPreset, value);
+            if (value != null)
+            {
+                ApplyPreset(value);
+            }
+        }
+    }
+
     public System.Windows.Input.ICommand SaveImageCommand { get; }
     public System.Windows.Input.ICommand CopyImageCommand { get; }
     public System.Windows.Input.ICommand ReloadCommand { get; }
@@ -106,6 +139,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public System.Windows.Input.ICommand ZoomOutCommand { get; }
     public System.Windows.Input.ICommand ResetZoomCommand { get; }
     public System.Windows.Input.ICommand FitCommand { get; }
+    public System.Windows.Input.ICommand ResetDimensionsCommand { get; }
+    public System.Windows.Input.ICommand ApplyPresetCommand { get; }
 
     public PreviewSessionViewModel(
         PreviewTarget target,
@@ -121,6 +156,20 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         previewWidth = target.InitialWidth ?? 1024;
         previewHeight = target.InitialHeight ?? 768;
 
+        var origW = target.InitialWidth ?? 800;
+        var origH = target.InitialHeight ?? 600;
+        Presets = new List<DimensionPreset>
+        {
+            new("Diseño original", origW, origH),
+            new("Ventana compacta", 800, 600),
+            new("HD (720p)", 1280, 720),
+            new("Full HD (1080p)", 1920, 1080),
+            new("Tablet vertical", 768, 1024),
+            new("Tablet horizontal", 1024, 768),
+            new("Móvil vertical", 390, 844),
+            new("Móvil horizontal", 844, 390),
+        };
+
         SaveImageCommand = new AsyncDelegateCommand(SaveImageAsync);
         CopyImageCommand = new AsyncDelegateCommand(CopyImageAsync);
         ReloadCommand = new DelegateCommand(Reload);
@@ -129,6 +178,14 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         ZoomOutCommand = new DelegateCommand(() => RequestZoomOut?.Invoke());
         ResetZoomCommand = new DelegateCommand(() => RequestResetZoom?.Invoke());
         FitCommand = new DelegateCommand(() => RequestFit?.Invoke());
+        ResetDimensionsCommand = new DelegateCommand(ResetDimensions);
+        ApplyPresetCommand = new DelegateCommand<DimensionPreset>(p =>
+        {
+            if (p != null)
+            {
+                ApplyPreset(p);
+            }
+        });
 
         server.FrameReceived += OnFrameReceived;
         server.XamlResultReceived += OnXamlResultReceived;
@@ -150,10 +207,48 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     public void SetViewportSize(double width, double height)
     {
-        PreviewWidth = width;
-        PreviewHeight = height;
-        this.RaisePropertyChanged(nameof(DimensionsText));
-        server.SetViewportSize(width, height);
+        SetCustomDimensions(width, height);
+    }
+
+    public void OnResizeDrag(double width, double height)
+    {
+        IsResizing = true;
+        PreviewWidth = Math.Round(Math.Clamp(width, 100, 4096));
+        PreviewHeight = Math.Round(Math.Clamp(height, 100, 4096));
+
+        var now = DateTime.UtcNow;
+        if ((now - lastViewportUpdateTime).TotalMilliseconds >= 75)
+        {
+            lastViewportUpdateTime = now;
+            server.SetViewportSize(PreviewWidth, PreviewHeight);
+        }
+    }
+
+    public void OnResizeDragCompleted()
+    {
+        IsResizing = false;
+        server.SetViewportSize(PreviewWidth, PreviewHeight);
+    }
+
+    public void SetCustomDimensions(double width, double height)
+    {
+        PreviewWidth = Math.Round(Math.Clamp(width, 100, 4096));
+        PreviewHeight = Math.Round(Math.Clamp(height, 100, 4096));
+        server.SetViewportSize(PreviewWidth, PreviewHeight);
+    }
+
+    public void ResetDimensions()
+    {
+        var targetW = Target.InitialWidth ?? 800;
+        var targetH = Target.InitialHeight ?? 600;
+        PreviewWidth = targetW;
+        PreviewHeight = targetH;
+        server.ResetViewportSize(targetW, targetH);
+    }
+
+    public void ApplyPreset(DimensionPreset preset)
+    {
+        SetCustomDimensions(preset.Width, preset.Height);
     }
 
     private void Reload()
@@ -196,9 +291,12 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 }
 
                 CurrentBitmap = bitmap;
-                PreviewWidth = frame.Width;
-                PreviewHeight = frame.Height;
-                this.RaisePropertyChanged(nameof(DimensionsText));
+                if (!IsResizing)
+                {
+                    PreviewWidth = frame.Width;
+                    PreviewHeight = frame.Height;
+                    this.RaisePropertyChanged(nameof(DimensionsText));
+                }
                 HasXamlError = false;
                 XamlError = null;
                 XamlErrorDetails = null;

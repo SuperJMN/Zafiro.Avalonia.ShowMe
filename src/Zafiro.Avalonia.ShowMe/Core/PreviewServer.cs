@@ -162,8 +162,8 @@ public sealed class PreviewServer : IDisposable
         }
         else if (message is RequestViewportResizeMessage resize)
         {
-            // El diseñador indica el tamaño deseado por el control
-            if (resize.Width > 0 && resize.Height > 0)
+            // El diseñador indica el tamaño deseado por el control (solo si el usuario no ha fijado un tamaño)
+            if (!hasCustomViewportSize && resize.Width > 0 && resize.Height > 0)
             {
                 currentWidth = resize.Width;
                 currentHeight = resize.Height;
@@ -177,6 +177,8 @@ public sealed class PreviewServer : IDisposable
             }
         }
     }
+
+    private bool hasCustomViewportSize;
 
     public void UpdateXaml(string rawXaml, string? theme = null)
     {
@@ -197,6 +199,7 @@ public sealed class PreviewServer : IDisposable
 
     public void SetViewportSize(double width, double height, double dpi = 96.0)
     {
+        hasCustomViewportSize = true;
         currentWidth = width;
         currentHeight = height;
         currentDpi = dpi;
@@ -210,6 +213,29 @@ public sealed class PreviewServer : IDisposable
                 DpiX = currentDpi,
                 DpiY = currentDpi
             });
+
+            SendCurrentXaml();
+        }
+    }
+
+    public void ResetViewportSize(double width, double height, double dpi = 96.0)
+    {
+        hasCustomViewportSize = false;
+        currentWidth = width;
+        currentHeight = height;
+        currentDpi = dpi;
+
+        lock (syncLock)
+        {
+            connection?.Send(new ClientViewportAllocatedMessage
+            {
+                Width = currentWidth,
+                Height = currentHeight,
+                DpiX = currentDpi,
+                DpiY = currentDpi
+            });
+
+            SendCurrentXaml();
         }
     }
 
@@ -222,7 +248,11 @@ public sealed class PreviewServer : IDisposable
                 return;
             }
 
-            var processedXaml = XamlThemeModifier.ApplyTheme(lastRawXaml, currentTheme);
+            var processedXaml = XamlThemeModifier.ApplyModifiers(
+                lastRawXaml,
+                currentTheme,
+                hasCustomViewportSize ? currentWidth : null,
+                hasCustomViewportSize ? currentHeight : null);
 
             connection.Send(new UpdateXamlMessage
             {

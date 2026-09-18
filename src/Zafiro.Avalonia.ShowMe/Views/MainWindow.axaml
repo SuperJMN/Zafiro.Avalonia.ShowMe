@@ -332,11 +332,13 @@
                     
                     <!-- Fila 0, Col 0: Barra superior de la ventana de previsualización -->
                     <Border Grid.Row="0" Grid.Column="0"
+                            Width="{Binding CurrentSession.PreviewWidth}"
                             Background="{DynamicResource SystemChromeLowColor}"
                             BorderBrush="{DynamicResource SystemControlHighlightListAccentLowBrush}"
                             BorderThickness="1,1,1,0"
                             CornerRadius="6,6,0,0"
-                            Padding="10,5">
+                            Padding="10,5"
+                            ClipToBounds="True">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <PathIcon Data="M3,4H21A1,1 0 0,1 22,5V19A1,1 0 0,1 21,20H3A1,1 0 0,1 2,19V5A1,1 0 0,1 3,4M4,6V8H20V6H4M4,10V18H20V10H4Z"
@@ -345,6 +347,7 @@
                                 <TextBlock Text="{Binding CurrentSession.Target.RelativeXamlPath}"
                                            FontSize="11"
                                            FontWeight="Medium"
+                                           TextTrimming="CharacterEllipsis"
                                            Foreground="{DynamicResource SystemBaseMediumColor}"
                                            VerticalAlignment="Center" />
                             </StackPanel>

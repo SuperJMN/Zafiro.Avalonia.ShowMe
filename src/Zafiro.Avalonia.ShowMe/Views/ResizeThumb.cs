@@ -48,7 +48,10 @@ public class ResizeThumb : Thumb
     private Point? startPointerInParent;
     private double startWidth;
     private double startHeight;
+    private double lastReportedWidth;
+    private double lastReportedHeight;
     private Visual? parentReference;
+    private ZoomBorder? zoomBorder;
     private PreviewSessionViewModel? explicitSession;
 
     public void BindSession(PreviewSessionViewModel? session)
@@ -73,7 +76,7 @@ public class ResizeThumb : Thumb
             return;
         }
 
-        var zoomBorder = this.FindAncestorOfType<ZoomBorder>();
+        zoomBorder = this.FindAncestorOfType<ZoomBorder>();
         parentReference = zoomBorder ?? (Visual?)this.GetVisualParent();
         if (parentReference == null)
         {
@@ -86,6 +89,8 @@ public class ResizeThumb : Thumb
         startPointerInParent = e.GetPosition(parentReference);
         startWidth = session.PreviewWidth;
         startHeight = session.PreviewHeight;
+        lastReportedWidth = startWidth;
+        lastReportedHeight = startHeight;
         session.IsResizing = true;
     }
 
@@ -107,7 +112,6 @@ public class ResizeThumb : Thumb
         e.Handled = true;
 
         var currentPos = e.GetPosition(parentReference);
-        var zoomBorder = parentReference as ZoomBorder;
         var zoomX = zoomBorder != null && zoomBorder.ZoomX > 0.001 ? zoomBorder.ZoomX : 1.0;
         var zoomY = zoomBorder != null && zoomBorder.ZoomY > 0.001 ? zoomBorder.ZoomY : 1.0;
 
@@ -119,15 +123,31 @@ public class ResizeThumb : Thumb
 
         if (Direction is ResizeDirection.Horizontal or ResizeDirection.Both)
         {
-            newWidth = Math.Max(100, startWidth + totalDeltaX);
+            newWidth = Math.Round(Math.Clamp(startWidth + totalDeltaX, 100, 4096));
         }
 
         if (Direction is ResizeDirection.Vertical or ResizeDirection.Both)
         {
-            newHeight = Math.Max(100, startHeight + totalDeltaY);
+            newHeight = Math.Round(Math.Clamp(startHeight + totalDeltaY, 100, 4096));
         }
 
-        session.OnResizeDrag(newWidth, newHeight);
+        var deltaW = newWidth - lastReportedWidth;
+        var deltaH = newHeight - lastReportedHeight;
+
+        if (deltaW != 0 || deltaH != 0)
+        {
+            lastReportedWidth = newWidth;
+            lastReportedHeight = newHeight;
+
+            if (zoomBorder != null)
+            {
+                var panDx = (deltaW / 2.0) * zoomX;
+                var panDy = (deltaH / 2.0) * zoomY;
+                zoomBorder.PanDelta(panDx, panDy, skipTransitions: true);
+            }
+
+            session.OnResizeDrag(newWidth, newHeight);
+        }
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -150,6 +170,7 @@ public class ResizeThumb : Thumb
         {
             startPointerInParent = null;
             parentReference = null;
+            zoomBorder = null;
             ResolveSession()?.OnResizeDragCompleted();
         }
     }

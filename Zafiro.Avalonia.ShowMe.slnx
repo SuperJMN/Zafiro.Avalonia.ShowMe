@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Zafiro.Avalonia.ShowMe.Protocol/Zafiro.Avalonia.ShowMe.Protocol.csproj" />
+    <Project Path="src/Zafiro.Avalonia.ShowMe.Host/Zafiro.Avalonia.ShowMe.Host.csproj" />
     <Project Path="src/Zafiro.Avalonia.ShowMe/Zafiro.Avalonia.ShowMe.csproj" />
   </Folder>
   <Folder Name="/test/">

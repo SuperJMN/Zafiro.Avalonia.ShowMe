@@ -1,20 +1,19 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using Avalonia.Remote.Protocol;
-using Avalonia.Remote.Protocol.Designer;
-using Avalonia.Remote.Protocol.Viewport;
+using Zafiro.Avalonia.ShowMe.Protocol;
 
 namespace Zafiro.Avalonia.ShowMe.Core;
 
 public sealed class PreviewServer : IDisposable
 {
     private readonly PreviewTarget target;
-    private readonly BsonTcpTransport transport;
-    private IDisposable? listener;
+    private TcpListener? listener;
+    private TcpClient? client;
+    private Stream? stream;
     private Process? process;
-    private IAvaloniaRemoteTransportConnection? connection;
-    private readonly object syncLock = new();
+    private readonly SemaphoreSlim sendLock = new(1, 1);
+    private readonly CancellationTokenSource cts = new();
 
     private double currentWidth = 1024;
     private double currentHeight = 768;
@@ -23,17 +22,18 @@ public sealed class PreviewServer : IDisposable
     private string lastRawXaml = "";
     private bool isDisposed;
 
-    public event Action<FrameMessage>? FrameReceived;
-    public event Action<UpdateXamlResultMessage>? XamlResultReceived;
+    public event Action<ShowMeFramePacket>? FrameReceived;
+    public event Action<XamlStatusMessage>? XamlStatusReceived;
+    public event Action<HitTestResponseMessage>? HitTestResultReceived;
     public event Action<string>? StatusChanged;
     public event Action<string>? ErrorOccurred;
+    public event Action<string>? LogReceived;
 
     public PreviewServer(PreviewTarget target, int initialWidth = 1024, int initialHeight = 768)
     {
         this.target = target;
         currentWidth = target.InitialWidth ?? initialWidth;
         currentHeight = target.InitialHeight ?? initialHeight;
-        transport = new BsonTcpTransport();
     }
 
     public async Task StartAsync(string initialXaml, string theme = XamlThemeModifier.ThemeDefault, CancellationToken cancellationToken = default)
@@ -41,28 +41,21 @@ public sealed class PreviewServer : IDisposable
         lastRawXaml = initialXaml;
         currentTheme = theme;
 
-        // 1. Asignar puerto libre
+        // 1. Asignar puerto libre e iniciar listener TCP
         var port = GetFreePort();
+        listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start();
 
         StatusChanged?.Invoke($"Iniciando escucha en puerto {port}...");
 
-        // 2. Iniciar servidor BSON TCP
-        listener = transport.Listen(IPAddress.Loopback, port, OnClientConnected);
-
-        // 3. Iniciar proceso del previewer oficial de Avalonia
+        // 2. Iniciar proceso ShowMe.Host
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
             ArgumentList =
             {
-                "exec",
-                "--runtimeconfig", target.RuntimeConfigPath,
-                "--depsfile", target.DepsJsonPath,
                 target.DesignerHostPath,
-                "--transport", $"tcp-bson://127.0.0.1:{port}/",
-                "--session-id", Guid.NewGuid().ToString(),
-                "--method", "avalonia-remote",
-                target.TargetAssemblyPath
+                "--port", port.ToString()
             },
             WorkingDirectory = target.TargetDirectory,
             UseShellExecute = false,
@@ -71,12 +64,12 @@ public sealed class PreviewServer : IDisposable
             CreateNoWindow = true
         };
 
-        StatusChanged?.Invoke("Lanzando proceso del Avalonia Previewer...");
+        StatusChanged?.Invoke("Lanzando proceso ShowMe.Host...");
 
         process = Process.Start(psi);
         if (process == null)
         {
-            ErrorOccurred?.Invoke("No se pudo iniciar el proceso dotnet para el previewer.");
+            ErrorOccurred?.Invoke("No se pudo iniciar el proceso dotnet para ShowMe.Host.");
             return;
         }
 
@@ -84,101 +77,113 @@ public sealed class PreviewServer : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
-                Trace.WriteLine($"[Designer-Out] {e.Data}");
+                LogReceived?.Invoke($"[Host-Out] {e.Data}");
+                Trace.WriteLine($"[Host-Out] {e.Data}");
             }
         };
 
+        var stderrBuilder = new System.Text.StringBuilder();
         process.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
-                Trace.WriteLine($"[Designer-Err] {e.Data}");
+                stderrBuilder.AppendLine(e.Data);
+                LogReceived?.Invoke($"[Host-Err] {e.Data}");
+                Trace.WriteLine($"[Host-Err] {e.Data}");
             }
         };
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+
+        // 3. Esperar conexión del Host
+        StatusChanged?.Invoke("Esperando conexión de ShowMe.Host...");
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+
+        var acceptTask = listener.AcceptTcpClientAsync(linkedCts.Token).AsTask();
+        var exitTask = process.WaitForExitAsync(linkedCts.Token);
+        var timeoutTask = Task.Delay(12000, linkedCts.Token);
+
+        var completed = await Task.WhenAny(acceptTask, exitTask, timeoutTask).ConfigureAwait(false);
+        if (completed == exitTask)
+        {
+            var err = stderrBuilder.ToString();
+            throw new InvalidOperationException($"El proceso ShowMe.Host terminó inesperadamente con código {process.ExitCode}.\n{err}");
+        }
+        if (completed == timeoutTask)
+        {
+            var err = stderrBuilder.ToString();
+            throw new TimeoutException($"Tiempo de espera agotado (12s) esperando conexión de ShowMe.Host.\n{err}");
+        }
+
+        client = await acceptTask.ConfigureAwait(false);
+        stream = client.GetStream();
+
+        StatusChanged?.Invoke("ShowMe.Host conectado. Inicializando vista...");
+
+        // 4. Enviar mensaje de inicialización
+        var init = new InitMessage(
+            TargetAssemblyPath: target.TargetAssemblyPath,
+            InitialXaml: lastRawXaml,
+            Theme: currentTheme,
+            Width: currentWidth,
+            Height: currentHeight,
+            Dpi: currentDpi
+        );
+
+        await SendMessageAsync(init, linkedCts.Token).ConfigureAwait(false);
+
+        // 5. Iniciar loop de lectura de paquetes
+        _ = Task.Run(ReadLoopAsync, cts.Token);
     }
 
-    private void OnClientConnected(IAvaloniaRemoteTransportConnection conn)
+    private async Task ReadLoopAsync()
     {
-        lock (syncLock)
+        if (stream == null) return;
+
+        try
         {
-            connection = conn;
-        }
-
-        StatusChanged?.Invoke("Previewer conectado. Configurando sesión...");
-
-        conn.OnMessage += OnTransportMessage;
-        conn.OnException += (c, ex) =>
-        {
-            ErrorOccurred?.Invoke($"Error en transporte del previewer: {ex.Message}");
-        };
-    }
-
-    private void OnTransportMessage(IAvaloniaRemoteTransportConnection conn, object message)
-    {
-        if (message is StartDesignerSessionMessage session)
-        {
-            StatusChanged?.Invoke("Sesión de diseñador inicializada.");
-
-            conn.Send(new ClientSupportedPixelFormatsMessage
+            while (!cts.IsCancellationRequested && client != null && client.Connected)
             {
-                Formats = [PixelFormat.Bgra8888, PixelFormat.Rgba8888]
-            });
-
-            conn.Send(new ClientRenderInfoMessage
-            {
-                DpiX = currentDpi,
-                DpiY = currentDpi
-            });
-
-            conn.Send(new ClientViewportAllocatedMessage
-            {
-                Width = currentWidth,
-                Height = currentHeight,
-                DpiX = currentDpi,
-                DpiY = currentDpi
-            });
-
-            SendCurrentXaml();
-        }
-        else if (message is UpdateXamlResultMessage result)
-        {
-            XamlResultReceived?.Invoke(result);
-            if (string.IsNullOrEmpty(result.Error))
-            {
-                StatusChanged?.Invoke("XAML previsualizado correctamente.");
-            }
-            else
-            {
-                StatusChanged?.Invoke($"Error en XAML: {result.Error}");
-            }
-        }
-        else if (message is FrameMessage frame)
-        {
-            FrameReceived?.Invoke(frame);
-            conn.Send(new FrameReceivedMessage { SequenceId = frame.SequenceId });
-        }
-        else if (message is RequestViewportResizeMessage resize)
-        {
-            // El diseñador indica el tamaño deseado por el control (solo si el usuario no ha fijado un tamaño)
-            if (!hasCustomViewportSize && resize.Width > 0 && resize.Height > 0)
-            {
-                currentWidth = resize.Width;
-                currentHeight = resize.Height;
-                conn.Send(new ClientViewportAllocatedMessage
+                var packet = await ShowMeFraming.ReadPacketAsync(stream, cts.Token).ConfigureAwait(false);
+                if (packet == null)
                 {
-                    Width = currentWidth,
-                    Height = currentHeight,
-                    DpiX = currentDpi,
-                    DpiY = currentDpi
-                });
+                    break;
+                }
+
+                if (packet is ShowMeFramePacket frame)
+                {
+                    FrameReceived?.Invoke(frame);
+                }
+                else if (packet is XamlStatusMessage status)
+                {
+                    XamlStatusReceived?.Invoke(status);
+                    if (status.Success)
+                    {
+                        StatusChanged?.Invoke("XAML cargado e instanciado correctamente.");
+                    }
+                    else
+                    {
+                        StatusChanged?.Invoke($"Error en XAML: {status.Error}");
+                    }
+                }
+                else if (packet is HitTestResponseMessage hit)
+                {
+                    HitTestResultReceived?.Invoke(hit);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!isDisposed)
+            {
+                ErrorOccurred?.Invoke($"Error de comunicación con ShowMe.Host: {ex.Message}");
             }
         }
     }
-
-    private bool hasCustomViewportSize;
 
     public void UpdateXaml(string rawXaml, string? theme = null)
     {
@@ -188,88 +193,90 @@ public sealed class PreviewServer : IDisposable
             currentTheme = theme;
         }
 
-        SendCurrentXaml();
+        _ = SendMessageAsync(new UpdateXamlMessage(rawXaml, currentTheme), cts.Token);
     }
 
     public void UpdateTheme(string theme)
     {
         currentTheme = theme;
-        SendCurrentXaml();
+        _ = SendMessageAsync(new UpdateXamlMessage(lastRawXaml, currentTheme), cts.Token);
     }
 
     public void SetViewportSize(double width, double height, double dpi = 96.0)
     {
-        hasCustomViewportSize = true;
         currentWidth = width;
         currentHeight = height;
         currentDpi = dpi;
 
-        lock (syncLock)
-        {
-            connection?.Send(new ClientViewportAllocatedMessage
-            {
-                Width = currentWidth,
-                Height = currentHeight,
-                DpiX = currentDpi,
-                DpiY = currentDpi
-            });
-
-            SendCurrentXaml();
-        }
+        _ = SendMessageAsync(new ResizeViewportMessage(width, height, dpi), cts.Token);
     }
 
-    public void ResetViewportSize(double width, double height, double dpi = 96.0)
+    public void ResetViewportSize(double width, double height)
     {
-        hasCustomViewportSize = false;
-        currentWidth = width;
-        currentHeight = height;
-        currentDpi = dpi;
-
-        lock (syncLock)
-        {
-            connection?.Send(new ClientViewportAllocatedMessage
-            {
-                Width = currentWidth,
-                Height = currentHeight,
-                DpiX = currentDpi,
-                DpiY = currentDpi
-            });
-
-            SendCurrentXaml();
-        }
+        SetViewportSize(width, height, currentDpi);
     }
 
-    private void SendCurrentXaml()
+    public void SendPointerEvent(
+        PointerActionType action,
+        double x,
+        double y,
+        PointerMouseButton button = PointerMouseButton.None,
+        double deltaX = 0,
+        double deltaY = 0,
+        bool alt = false,
+        bool ctrl = false,
+        bool shift = false)
     {
-        lock (syncLock)
+        _ = SendMessageAsync(new PointerInputMessage(action, x, y, button, deltaX, deltaY, alt, ctrl, shift), cts.Token);
+    }
+
+    public void SendKeyEvent(
+        KeyActionType action,
+        int keyCode = 0,
+        string? text = null,
+        bool alt = false,
+        bool ctrl = false,
+        bool shift = false)
+    {
+        _ = SendMessageAsync(new KeyInputMessage(action, keyCode, text, alt, ctrl, shift), cts.Token);
+    }
+
+    public void RequestHitTest(double x, double y)
+    {
+        var reqId = Guid.NewGuid().ToString();
+        _ = SendMessageAsync(new HitTestRequestMessage(reqId, x, y), cts.Token);
+    }
+
+    private async Task SendMessageAsync(ShowMeMessage msg, CancellationToken ct)
+    {
+        if (stream == null || client == null || !client.Connected) return;
+
+        try
         {
-            if (connection == null)
+            await sendLock.WaitAsync(ct).ConfigureAwait(false);
+            try
             {
-                return;
+                await ShowMeFraming.WriteControlMessageAsync(stream, msg, ct).ConfigureAwait(false);
             }
-
-            var processedXaml = XamlThemeModifier.ApplyModifiers(
-                lastRawXaml,
-                currentTheme,
-                hasCustomViewportSize ? currentWidth : null,
-                hasCustomViewportSize ? currentHeight : null);
-
-            connection.Send(new UpdateXamlMessage
+            finally
             {
-                Xaml = processedXaml,
-                AssemblyPath = target.XamlAssemblyPath,
-                XamlFileProjectPath = target.RelativeXamlPath
-            });
+                sendLock.Release();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!isDisposed)
+            {
+                Trace.WriteLine($"[PreviewServer] Error enviando mensaje {msg.GetType().Name}: {ex.Message}");
+            }
         }
     }
 
     private static int GetFreePort()
     {
-        using var tcpListener = new TcpListener(IPAddress.Loopback, 0);
-        tcpListener.Start();
-        var port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
-        tcpListener.Stop();
-        return port;
+        using var sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        sock.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        return ((IPEndPoint)sock.LocalEndPoint!).Port;
     }
 
     public void Dispose()
@@ -277,9 +284,14 @@ public sealed class PreviewServer : IDisposable
         if (isDisposed) return;
         isDisposed = true;
 
+        cts.Cancel();
+        cts.Dispose();
+
         try
         {
-            listener?.Dispose();
+            stream?.Dispose();
+            client?.Dispose();
+            listener?.Stop();
         }
         catch { }
 
@@ -292,5 +304,7 @@ public sealed class PreviewServer : IDisposable
             }
         }
         catch { }
+
+        sendLock.Dispose();
     }
 }

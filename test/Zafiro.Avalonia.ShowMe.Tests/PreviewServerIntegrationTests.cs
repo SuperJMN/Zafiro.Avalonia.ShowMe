@@ -1,11 +1,19 @@
-using Avalonia.Remote.Protocol.Viewport;
 using Xunit;
+using Xunit.Abstractions;
 using Zafiro.Avalonia.ShowMe.Core;
+using Zafiro.Avalonia.ShowMe.Protocol;
 
 namespace Zafiro.Avalonia.ShowMe.Tests;
 
 public class PreviewServerIntegrationTests
 {
+    private readonly ITestOutputHelper output;
+
+    public PreviewServerIntegrationTests(ITestOutputHelper output)
+    {
+        this.output = output;
+    }
+
     [Fact]
     public async Task PreviewServer_Connects_And_Receives_Frames()
     {
@@ -21,8 +29,17 @@ public class PreviewServerIntegrationTests
         var target = resolveResult.Value;
         using var server = new PreviewServer(target, 900, 650);
 
-        var frameTcs = new TaskCompletionSource<FrameMessage>();
-        server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+        server.StatusChanged += s => output.WriteLine($"[Status] {s}");
+        server.ErrorOccurred += e => output.WriteLine($"[Error] {e}");
+        server.LogReceived += l => output.WriteLine(l);
+        server.XamlStatusReceived += x => output.WriteLine($"[XamlStatus] Success={x.Success}, Error={x.Error}");
+
+        var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+        server.FrameReceived += frame =>
+        {
+            output.WriteLine($"[FrameReceived] {frame.Width}x{frame.Height}, {frame.PixelData?.Length} bytes");
+            frameTcs.TrySetResult(frame);
+        };
 
         var rawXaml = await File.ReadAllTextAsync(target.AxamlPath);
         await server.StartAsync(rawXaml);
@@ -34,7 +51,45 @@ public class PreviewServerIntegrationTests
         Assert.NotNull(frame);
         Assert.True(frame.Width > 0);
         Assert.True(frame.Height > 0);
-        Assert.NotNull(frame.Data);
-        Assert.True(frame.Data.Length > 0);
+        Assert.NotNull(frame.PixelData);
+        Assert.True(frame.PixelData.Length > 0);
+    }
+
+    [Fact]
+    public async Task PreviewServer_HitTest_Inspects_Element()
+    {
+        var sampleAxaml = "/mnt/fast/Repos/AvaloniaMcp/samples/SampleApp/MainWindow.axaml";
+        if (!File.Exists(sampleAxaml))
+        {
+            return;
+        }
+
+        var resolveResult = await PreviewTargetResolver.ResolveAsync(sampleAxaml);
+        Assert.True(resolveResult.IsSuccess, resolveResult.IsFailure ? resolveResult.Error : "");
+
+        var target = resolveResult.Value;
+        using var server = new PreviewServer(target, 900, 650);
+
+        var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+        server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+
+        var rawXaml = await File.ReadAllTextAsync(target.AxamlPath);
+        await server.StartAsync(rawXaml);
+
+        await frameTcs.Task;
+
+        var hitTcs = new TaskCompletionSource<HitTestResponseMessage>();
+        server.HitTestResultReceived += res => hitTcs.TrySetResult(res);
+
+        server.RequestHitTest(50, 70);
+
+        var hitCompleted = await Task.WhenAny(hitTcs.Task, Task.Delay(5000));
+        Assert.Same(hitTcs.Task, hitCompleted);
+
+        var hit = await hitTcs.Task;
+        Assert.NotNull(hit);
+        Assert.True(hit.Found);
+        Assert.NotEmpty(hit.TypeName);
+        output.WriteLine($"[HitTest] Type={hit.TypeName}, Element={hit.ElementName}, Line={hit.LineNumber}:{hit.LinePosition}, Bounds=({hit.BoundsX},{hit.BoundsY},{hit.BoundsWidth}x{hit.BoundsHeight})");
     }
 }

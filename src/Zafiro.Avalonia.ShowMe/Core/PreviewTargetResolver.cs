@@ -72,17 +72,28 @@ public sealed class PreviewTargetResolver
                 }
             }
 
-            // 5. Localizar Avalonia.Designer.HostApp.dll
-            var designerHostPath = props.DesignerToolPath;
-            if (string.IsNullOrWhiteSpace(designerHostPath) || !File.Exists(designerHostPath))
+            // 5. Localizar Zafiro.Avalonia.ShowMe.Host.dll
+            var showMeHostPath = Path.Combine(AppContext.BaseDirectory, "Zafiro.Avalonia.ShowMe.Host.dll");
+            if (!File.Exists(showMeHostPath))
             {
-                designerHostPath = FindFallbackDesignerHostApp(targetDir);
+                var devHost = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Zafiro.Avalonia.ShowMe.Host", "bin", "Debug", "net10.0", "Zafiro.Avalonia.ShowMe.Host.dll"));
+                if (File.Exists(devHost))
+                {
+                    showMeHostPath = devHost;
+                }
             }
 
-            if (string.IsNullOrWhiteSpace(designerHostPath) || !File.Exists(designerHostPath))
+            if (!File.Exists(showMeHostPath) && !string.IsNullOrWhiteSpace(props.DesignerToolPath) && File.Exists(props.DesignerToolPath))
             {
-                return Result.Failure<PreviewTarget>("No se pudo localizar 'Avalonia.Designer.HostApp.dll'. Asegúrate de que el proyecto tenga referencia a Avalonia.");
+                showMeHostPath = props.DesignerToolPath;
             }
+
+            if (string.IsNullOrWhiteSpace(showMeHostPath) || !File.Exists(showMeHostPath))
+            {
+                return Result.Failure<PreviewTarget>("No se pudo localizar 'Zafiro.Avalonia.ShowMe.Host.dll'.");
+            }
+
+            var designerHostPath = showMeHostPath;
 
             // 6. Localizar runtimeconfig.json y deps.json
             var runtimeConfigPath = Path.Combine(targetDir, $"{targetName}.runtimeconfig.json");

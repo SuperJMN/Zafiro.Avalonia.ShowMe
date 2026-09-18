@@ -1,13 +1,13 @@
+using System.Diagnostics;
 using System.Reactive;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Avalonia.Remote.Protocol.Designer;
-using Avalonia.Remote.Protocol.Viewport;
 using Avalonia.Threading;
 using ReactiveUI;
 using Zafiro.Avalonia.ShowMe.Core;
+using Zafiro.Avalonia.ShowMe.Protocol;
 using Zafiro.Avalonia.ShowMe.Services;
 
 namespace Zafiro.Avalonia.ShowMe.ViewModels;
@@ -33,6 +33,10 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private bool hasUserSetDimensions;
     private CancellationTokenSource? dragDebounceCts;
     private DimensionPreset? selectedPreset;
+
+    private bool isInspectorActive;
+    private ElementInspectionInfo? selectedElement;
+    private Rect? selectionBounds;
 
     public event Action? RequestZoomIn;
     public event Action? RequestZoomOut;
@@ -76,7 +80,24 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public string ZoomText
     {
         get => zoomText;
-        set => this.RaiseAndSetIfChanged(ref zoomText, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref zoomText, value);
+            if (ZoomLevel <= 0)
+            {
+                if (double.TryParse(value.TrimEnd('%'), out var parsed))
+                {
+                    ZoomLevel = parsed / 100.0;
+                }
+            }
+        }
+    }
+
+    private double zoomLevel = 1.0;
+    public double ZoomLevel
+    {
+        get => zoomLevel;
+        set => this.RaiseAndSetIfChanged(ref zoomLevel, value);
     }
 
     public bool IsHotReloadActive
@@ -90,6 +111,32 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 fileWatcher.EnableRaisingEvents = value;
             }
         }
+    }
+
+    public bool IsInspectorActive
+    {
+        get => isInspectorActive;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref isInspectorActive, value);
+            if (!value)
+            {
+                SelectedElement = null;
+                SelectionBounds = null;
+            }
+        }
+    }
+
+    public ElementInspectionInfo? SelectedElement
+    {
+        get => selectedElement;
+        private set => this.RaiseAndSetIfChanged(ref selectedElement, value);
+    }
+
+    public Rect? SelectionBounds
+    {
+        get => selectionBounds;
+        private set => this.RaiseAndSetIfChanged(ref selectionBounds, value);
     }
 
     public string? XamlError
@@ -142,6 +189,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public System.Windows.Input.ICommand FitCommand { get; }
     public System.Windows.Input.ICommand ResetDimensionsCommand { get; }
     public System.Windows.Input.ICommand ApplyPresetCommand { get; }
+    public System.Windows.Input.ICommand ToggleInspectorCommand { get; }
+    public System.Windows.Input.ICommand ClearSelectionCommand { get; }
+    public System.Windows.Input.ICommand NavigateToCodeCommand { get; }
 
     public PreviewSessionViewModel(
         PreviewTarget target,
@@ -194,8 +244,17 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             }
         });
 
+        ToggleInspectorCommand = new DelegateCommand(() => IsInspectorActive = !IsInspectorActive);
+        ClearSelectionCommand = new DelegateCommand(() =>
+        {
+            SelectedElement = null;
+            SelectionBounds = null;
+        });
+        NavigateToCodeCommand = new DelegateCommand(NavigateToCode);
+
         server.FrameReceived += OnFrameReceived;
-        server.XamlResultReceived += OnXamlResultReceived;
+        server.XamlStatusReceived += OnXamlStatusReceived;
+        server.HitTestResultReceived += OnHitTestResultReceived;
         server.StatusChanged += s => Dispatcher.UIThread.Post(() => Status = s);
         server.ErrorOccurred += err => Dispatcher.UIThread.Post(() =>
         {
@@ -232,7 +291,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             if (!t.IsCanceled)
             {
-                global::Avalonia.Threading.Dispatcher.UIThread.Post(() => server.SetViewportSize(PreviewWidth, PreviewHeight));
+                Dispatcher.UIThread.Post(() => server.SetViewportSize(PreviewWidth, PreviewHeight));
             }
         }, TaskScheduler.Default);
     }
@@ -270,6 +329,63 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         SetCustomDimensions(preset.Width, preset.Height);
     }
 
+    public void OnPointerInput(PointerActionType action, Point pt, PointerMouseButton button, Vector delta, bool alt, bool ctrl, bool shift)
+    {
+        if (IsInspectorActive || ctrl)
+        {
+            if (action == PointerActionType.Down)
+            {
+                server.RequestHitTest(pt.X, pt.Y);
+            }
+        }
+        else
+        {
+            server.SendPointerEvent(action, pt.X, pt.Y, button, delta.X, delta.Y, alt, ctrl, shift);
+        }
+    }
+
+    public void ClearSelection()
+    {
+        SelectedElement = null;
+        SelectionBounds = null;
+    }
+
+    public void OnKeyInput(KeyActionType action, int keyCode, string? text, bool alt, bool ctrl, bool shift)
+    {
+        if (!IsInspectorActive)
+        {
+            server.SendKeyEvent(action, keyCode, text, alt, ctrl, shift);
+        }
+    }
+
+    public void NavigateToCode()
+    {
+        if (SelectedElement == null || SelectedElement.LineNumber <= 0) return;
+
+        try
+        {
+            var line = SelectedElement.LineNumber;
+            var col = SelectedElement.LinePosition;
+            var file = Target.AxamlPath;
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "code",
+                Arguments = $"-g \"{file}:{line}:{col}\"",
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+        catch
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("xdg-open", $"\"{Target.AxamlPath}\"") { UseShellExecute = true });
+            }
+            catch { }
+        }
+    }
+
     private void Reload()
     {
         try
@@ -288,25 +404,21 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private void OnFrameReceived(FrameMessage frame)
+    private void OnFrameReceived(ShowMeFramePacket frame)
     {
         Dispatcher.UIThread.Post(() =>
         {
             try
             {
-                var pixelFormat = frame.Format == global::Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgba8888
-                    ? global::Avalonia.Platform.PixelFormat.Rgba8888
-                    : global::Avalonia.Platform.PixelFormat.Bgra8888;
-
                 var bitmap = new WriteableBitmap(
                     new PixelSize(frame.Width, frame.Height),
-                    new Vector(frame.DpiX > 0 ? frame.DpiX : 96, frame.DpiY > 0 ? frame.DpiY : 96),
-                    pixelFormat,
+                    new Vector(96, 96),
+                    global::Avalonia.Platform.PixelFormat.Bgra8888,
                     AlphaFormat.Premul);
 
                 using (var locked = bitmap.Lock())
                 {
-                    Marshal.Copy(frame.Data, 0, locked.Address, frame.Data.Length);
+                    Marshal.Copy(frame.PixelData, 0, locked.Address, frame.PixelData.Length);
                 }
 
                 CurrentBitmap = bitmap;
@@ -328,15 +440,15 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         });
     }
 
-    private void OnXamlResultReceived(UpdateXamlResultMessage result)
+    private void OnXamlStatusReceived(XamlStatusMessage status)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (!string.IsNullOrEmpty(result.Error) || result.Exception != null)
+            if (!status.Success)
             {
-                XamlError = result.Error ?? result.Exception?.Message ?? "Error desconocido en XAML";
-                XamlErrorDetails = result.Exception != null
-                    ? $"{result.Exception.ExceptionType} en línea {result.Exception.LineNumber}, pos {result.Exception.LinePosition}"
+                XamlError = status.Error ?? "Error desconocido en XAML";
+                XamlErrorDetails = status.LineNumber.HasValue
+                    ? $"Línea {status.LineNumber}, pos {status.LinePosition}"
                     : null;
                 HasXamlError = true;
             }
@@ -345,6 +457,34 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 HasXamlError = false;
                 XamlError = null;
                 XamlErrorDetails = null;
+            }
+        });
+    }
+
+    private void OnHitTestResultReceived(HitTestResponseMessage hit)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (hit.Found)
+            {
+                var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
+                SelectedElement = new ElementInspectionInfo(
+                    TypeName: hit.TypeName,
+                    ElementName: hit.ElementName,
+                    LineNumber: hit.LineNumber,
+                    LinePosition: hit.LinePosition,
+                    SourceUri: hit.SourceUri,
+                    Bounds: bounds,
+                    Classes: hit.Classes ?? [],
+                    Ancestors: hit.AncestorTree ?? [],
+                    Properties: hit.Properties ?? new Dictionary<string, string>()
+                );
+                SelectionBounds = bounds;
+            }
+            else
+            {
+                SelectedElement = null;
+                SelectionBounds = null;
             }
         });
     }
@@ -364,23 +504,19 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                     EnableRaisingEvents = true
                 };
 
-                // Debounce para evitar lecturas concurrentes al guardar
                 var timer = new System.Timers.Timer(150) { AutoReset = false };
                 timer.Elapsed += (_, _) => Dispatcher.UIThread.Post(Reload);
 
                 fileWatcher.Changed += (_, _) =>
                 {
-                    if (IsHotReloadActive)
-                    {
-                        timer.Stop();
-                        timer.Start();
-                    }
+                    timer.Stop();
+                    timer.Start();
                 };
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignorar errores al iniciar FileSystemWatcher
+            Trace.WriteLine($"Error configurando FileSystemWatcher: {ex.Message}");
         }
     }
 
@@ -388,15 +524,22 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     {
         if (CurrentBitmap == null) return;
 
-        var defaultName = $"Preview_{Target.TargetName}_{Path.GetFileNameWithoutExtension(Target.AxamlPath)}.png";
-        var path = await storageService.SaveImageFileDialogAsync(defaultName);
-        if (!string.IsNullOrWhiteSpace(path))
+        var defaultName = $"{Path.GetFileNameWithoutExtension(Target.AxamlPath)}_{PreviewWidth:F0}x{PreviewHeight:F0}.png";
+        var filePath = await storageService.SaveImageFileDialogAsync(defaultName);
+
+        if (!string.IsNullOrEmpty(filePath))
         {
-            using var stream = File.Create(path);
-#pragma warning disable CS0618
-            CurrentBitmap.Save(stream);
-#pragma warning restore CS0618
-            Status = $"Imagen guardada en: {Path.GetFileName(path)}";
+            try
+            {
+                using var stream = File.Create(filePath);
+                CurrentBitmap.Save(stream);
+                Status = $"Imagen guardada en: {Path.GetFileName(filePath)}";
+            }
+            catch (Exception ex)
+            {
+                XamlError = $"Error al guardar la imagen: {ex.Message}";
+                HasXamlError = true;
+            }
         }
     }
 
@@ -404,17 +547,22 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     {
         if (CurrentBitmap == null) return;
 
-        var success = await storageService.CopyBitmapToClipboardAsync(CurrentBitmap);
-        if (success)
+        try
         {
+            await storageService.CopyBitmapToClipboardAsync(CurrentBitmap);
             Status = "Imagen copiada al portapapeles.";
+        }
+        catch (Exception ex)
+        {
+            XamlError = $"Error al copiar imagen al portapapeles: {ex.Message}";
+            HasXamlError = true;
         }
     }
 
     public void Dispose()
     {
+        dragDebounceCts?.Dispose();
         fileWatcher?.Dispose();
         server.Dispose();
-        CurrentBitmap?.Dispose();
     }
 }

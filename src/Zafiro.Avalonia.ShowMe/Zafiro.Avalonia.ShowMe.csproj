@@ -42,6 +42,11 @@
   </Target>
 
   <ItemGroup>
+    <ProjectReference Include="..\Zafiro.Avalonia.ShowMe.Protocol\Zafiro.Avalonia.ShowMe.Protocol.csproj" />
+    <ProjectReference Include="..\Zafiro.Avalonia.ShowMe.Host\Zafiro.Avalonia.ShowMe.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />

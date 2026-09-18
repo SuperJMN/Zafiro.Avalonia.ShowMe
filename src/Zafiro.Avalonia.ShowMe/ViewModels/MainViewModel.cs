@@ -90,7 +90,11 @@ public sealed class MainViewModel : ReactiveObject
         }
     }
 
-    public async Task LoadFileAsync(string axamlPath, string? explicitProjectPath = null)
+    public async Task LoadFileAsync(
+        string axamlPath,
+        string? explicitProjectPath = null,
+        int? explicitWidth = null,
+        int? explicitHeight = null)
     {
         try
         {
@@ -125,7 +129,13 @@ public sealed class MainViewModel : ReactiveObject
 
                 var initialXaml = await File.ReadAllTextAsync(target.AxamlPath);
                 var server = new PreviewServer(target);
-                var session = new PreviewSessionViewModel(target, server, storageService, SelectedTheme.Id);
+                var session = new PreviewSessionViewModel(
+                    target,
+                    server,
+                    storageService,
+                    SelectedTheme.Id,
+                    explicitWidth,
+                    explicitHeight);
 
                 CurrentSession = session;
 

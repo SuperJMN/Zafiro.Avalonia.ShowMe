@@ -41,7 +41,11 @@ public partial class App : Application
             {
                 Dispatcher.UIThread.Post(async () =>
                 {
-                    await mainViewModel.LoadFileAsync(cliArgs.FilePath, cliArgs.ProjectPath);
+                    await mainViewModel.LoadFileAsync(
+                        cliArgs.FilePath,
+                        cliArgs.ProjectPath,
+                        cliArgs.Width,
+                        cliArgs.Height);
                 });
             }
         }

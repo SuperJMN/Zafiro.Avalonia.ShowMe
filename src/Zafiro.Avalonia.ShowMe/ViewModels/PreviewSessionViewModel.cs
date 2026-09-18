@@ -147,18 +147,24 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         PreviewTarget target,
         PreviewServer server,
         IStorageService storageService,
-        string initialTheme = XamlThemeModifier.ThemeDefault)
+        string initialTheme = XamlThemeModifier.ThemeDefault,
+        int? explicitWidth = null,
+        int? explicitHeight = null)
     {
         Target = target;
         this.server = server;
         this.storageService = storageService;
         currentTheme = initialTheme;
 
-        previewWidth = target.InitialWidth ?? 1024;
-        previewHeight = target.InitialHeight ?? 768;
+        previewWidth = explicitWidth ?? target.InitialWidth ?? 1024;
+        previewHeight = explicitHeight ?? target.InitialHeight ?? 768;
+        if (explicitWidth.HasValue || explicitHeight.HasValue)
+        {
+            hasUserSetDimensions = true;
+        }
 
-        var origW = target.InitialWidth ?? 800;
-        var origH = target.InitialHeight ?? 600;
+        var origW = explicitWidth ?? target.InitialWidth ?? 800;
+        var origH = explicitHeight ?? target.InitialHeight ?? 600;
         Presets = new List<DimensionPreset>
         {
             new("Diseño original", origW, origH),

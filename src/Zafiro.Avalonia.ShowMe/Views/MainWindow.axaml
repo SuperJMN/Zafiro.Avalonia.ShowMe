@@ -10,7 +10,8 @@
         x:DataType="vm:MainViewModel"
         Title="Zafiro ShowMe - Previsualizador XAML"
         Icon="/Assets/icon.png"
-        Width="1200" Height="800"
+        Width="1050" Height="700"
+        MinWidth="800" MinHeight="450"
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
@@ -102,8 +103,8 @@
                 Background="{DynamicResource SystemChromeMediumColor}"
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,0,0,1"
-                Padding="12,8">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                Padding="12,6">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                 
                 <!-- Logo & Título -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -114,7 +115,7 @@
                 </StackPanel>
 
                 <!-- Botón Abrir Archivo -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" Spacing="8">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" Spacing="8" VerticalAlignment="Center">
                     <Button Classes="toolbar"
                             Command="{Binding OpenFileCommand}"
                             ToolTip.Tip="Abrir archivo AXAML / XAML (Ctrl+O)">
@@ -130,32 +131,37 @@
                             Background="{DynamicResource SystemChromeLowColor}"
                             CornerRadius="4"
                             Padding="8,4"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="{Binding CurrentSession.Target.AxamlPath}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <PathIcon Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"
                                       Width="12" Height="12" Foreground="{DynamicResource SystemAccentColor}" />
                             <TextBlock Text="{Binding CurrentSession.Target.RelativeXamlPath}"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center"
+                                       MaxWidth="130"
+                                       TextTrimming="CharacterEllipsis"
                                        FontSize="12" />
                             <TextBlock Text="{Binding CurrentSession.Target.TargetName, StringFormat='({0})'}"
                                        Foreground="{DynamicResource SystemBaseMediumColor}"
                                        FontSize="11"
+                                       MaxWidth="80"
+                                       TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <!-- Controles centrales (Zoom, Tamaño) -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                <!-- Panel derecho unificado de herramientas -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center"
                             IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}">
                     
                     <!-- Controles de Zoom -->
                     <Border Background="{DynamicResource SystemChromeLowColor}" CornerRadius="4" Padding="2">
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <Button Classes="toolbar"
-                                    Command="{Binding CurrentSession.ZoomOutCommand}"
-                                    ToolTip.Tip="Alejar (Zoom Out)">
+                                     Command="{Binding CurrentSession.ZoomOutCommand}"
+                                     ToolTip.Tip="Alejar (Zoom Out)">
                                 <TextBlock Text="−" FontWeight="Bold" FontSize="14" />
                             </Button>
                             
@@ -166,20 +172,20 @@
                                        FontSize="12" />
 
                             <Button Classes="toolbar"
-                                    Command="{Binding CurrentSession.ZoomInCommand}"
-                                    ToolTip.Tip="Acercar (Zoom In)">
+                                     Command="{Binding CurrentSession.ZoomInCommand}"
+                                     ToolTip.Tip="Acercar (Zoom In)">
                                 <TextBlock Text="+" FontWeight="Bold" FontSize="14" />
                             </Button>
 
                             <Button Classes="toolbar"
-                                    Command="{Binding CurrentSession.ResetZoomCommand}"
-                                    ToolTip.Tip="Zoom 100% (1:1)">
+                                     Command="{Binding CurrentSession.ResetZoomCommand}"
+                                     ToolTip.Tip="Zoom 100% (1:1)">
                                 <TextBlock Text="1:1" FontSize="11" />
                             </Button>
 
                             <Button Classes="toolbar"
-                                    Command="{Binding CurrentSession.FitCommand}"
-                                    ToolTip.Tip="Ajustar al área visible">
+                                     Command="{Binding CurrentSession.FitCommand}"
+                                     ToolTip.Tip="Ajustar al área visible">
                                 <TextBlock Text="Ajustar" FontSize="11" />
                             </Button>
                         </StackPanel>
@@ -193,7 +199,7 @@
                                       SelectedItem="{Binding CurrentSession.SelectedPreset, Mode=TwoWay}"
                                       PlaceholderText="Resolución..."
                                       ToolTip.Tip="Elegir resolución predefinida"
-                                      Width="160">
+                                      Width="120">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:DimensionPreset">
                                         <TextBlock Text="{Binding DisplayText}" FontSize="12" />
@@ -204,28 +210,21 @@
                             <!-- Botón Restablecer Tamaño a d:DesignWidth/Height -->
                             <Button Classes="toolbar"
                                     Command="{Binding CurrentSession.ResetDimensionsCommand}"
-                                    ToolTip.Tip="Restablecer al tamaño de diseño original (d:DesignWidth / d:DesignHeight)">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
-                                              Width="12" Height="12" />
-                                    <TextBlock Text="Original" FontSize="11" />
-                                </StackPanel>
+                                    ToolTip.Tip="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)">
+                                <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
+                                          Width="13" Height="13" />
                             </Button>
                         </StackPanel>
                     </Border>
-                </StackPanel>
 
-                <!-- Selector de Tema y Acciones de Imagen -->
-                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="10" Margin="16,0,0,0" VerticalAlignment="Center">
-                    
                     <!-- SELECTOR DE THEME -->
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <PathIcon Data="M12,18C11.11,18 10.26,17.8 9.5,17.45C11.56,16.5 13,14.42 13,12C13,9.58 11.56,7.5 9.5,6.55C10.26,6.2 11.11,6 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M20,8.69V4H15.31L12,0.69L8.69,4H4V8.69L0.69,12L4,15.31V20H8.69L12,23.31L15.31,20H20V15.31L23.31,12L20,8.69Z"
                                   Width="14" Height="14" Foreground="{DynamicResource SystemAccentColor}" />
                         <ComboBox ItemsSource="{Binding ThemeOptions}"
                                   SelectedItem="{Binding SelectedTheme}"
                                   ToolTip.Tip="Cambiar tema (Aplicación / Claro / Oscuro)"
-                                  Width="120">
+                                  Width="95">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ThemeOption">
                                     <TextBlock Text="{Binding DisplayName}" />
@@ -239,11 +238,8 @@
                             Command="{Binding CurrentSession.SaveImageCommand}"
                             IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Guardar imagen renderizada como archivo PNG / JPEG">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
-                                      Width="14" Height="14" />
-                            <TextBlock Text="Guardar Imagen" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
+                                  Width="14" Height="14" />
                     </Button>
 
                     <!-- Botón Copiar Imagen -->

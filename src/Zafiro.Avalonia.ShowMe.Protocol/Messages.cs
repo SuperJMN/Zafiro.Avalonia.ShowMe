@@ -48,7 +48,8 @@ public record InitMessage(
     string Theme,
     double Width,
     double Height,
-    double Dpi = 96.0
+    double Dpi = 96.0,
+    string? XamlAssemblyPath = null
 ) : ShowMeMessage;
 
 public record UpdateXamlMessage(

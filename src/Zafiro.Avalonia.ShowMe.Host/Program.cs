@@ -26,18 +26,50 @@ public class Program
         return Run(args);
     }
 
+    public static string? TargetDirectory { get; set; }
+
     private static void SetupAssemblyResolver()
     {
         var hostDir = Path.GetDirectoryName(typeof(Program).Assembly.Location) ?? AppContext.BaseDirectory;
         var currentDir = Directory.GetCurrentDirectory();
 
-        AssemblyLoadContext.Default.Resolving += (context, assemblyName) =>
+        Assembly? ResolveCore(AssemblyName assemblyName, AssemblyLoadContext? context)
         {
+            context ??= AssemblyLoadContext.Default;
+
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (string.Equals(asm.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     return asm;
+                }
+            }
+
+            var dir = TargetDirectory ?? currentDir;
+
+            // Mapeos de alias conocidos (compatibilidad con librerías de behaviors renombradas)
+            if (string.Equals(assemblyName.Name, "Avalonia.Xaml.Interactivity", StringComparison.OrdinalIgnoreCase))
+            {
+                var loaded = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a =>
+                    string.Equals(a.GetName().Name, "Xaml.Behaviors.Interactivity", StringComparison.OrdinalIgnoreCase));
+                if (loaded != null) return loaded;
+
+                var candidate = Path.Combine(dir, "Xaml.Behaviors.Interactivity.dll");
+                if (File.Exists(candidate))
+                {
+                    try { return context.LoadFromAssemblyPath(candidate); } catch { }
+                }
+            }
+            if (string.Equals(assemblyName.Name, "Avalonia.Xaml.Interactions", StringComparison.OrdinalIgnoreCase))
+            {
+                var loaded = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a =>
+                    string.Equals(a.GetName().Name, "Xaml.Behaviors.Interactions", StringComparison.OrdinalIgnoreCase));
+                if (loaded != null) return loaded;
+
+                var candidate = Path.Combine(dir, "Xaml.Behaviors.Interactions.dll");
+                if (File.Exists(candidate))
+                {
+                    try { return context.LoadFromAssemblyPath(candidate); } catch { }
                 }
             }
 
@@ -53,7 +85,7 @@ public class Program
             }
 
             // 2. Para ensamblados del proyecto destino (SampleApp.dll, librerías del usuario, etc.)
-            var targetCandidate = Path.Combine(currentDir, assemblyName.Name + ".dll");
+            var targetCandidate = Path.Combine(dir, assemblyName.Name + ".dll");
             if (File.Exists(targetCandidate))
             {
                 try
@@ -64,7 +96,10 @@ public class Program
             }
 
             return null;
-        };
+        }
+
+        AssemblyLoadContext.Default.Resolving += (context, assemblyName) => ResolveCore(assemblyName, context);
+        AppDomain.CurrentDomain.AssemblyResolve += (_, args) => ResolveCore(new AssemblyName(args.Name), null);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -128,7 +128,8 @@ public sealed class PreviewServer : IDisposable
             Theme: currentTheme,
             Width: currentWidth,
             Height: currentHeight,
-            Dpi: currentDpi
+            Dpi: currentDpi,
+            XamlAssemblyPath: target.XamlAssemblyPath
         );
 
         await SendMessageAsync(init, linkedCts.Token).ConfigureAwait(false);

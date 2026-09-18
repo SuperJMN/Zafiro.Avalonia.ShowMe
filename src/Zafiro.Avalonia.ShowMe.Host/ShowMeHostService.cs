@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -8,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Diagnostics;
 using Avalonia.Media.Imaging;
+using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Zafiro.Avalonia.ShowMe.Protocol;
@@ -92,16 +94,30 @@ public sealed class ShowMeHostService
                         window.Height = currentHeight;
                     }
 
-                    if (!string.IsNullOrEmpty(init.TargetAssemblyPath) && File.Exists(init.TargetAssemblyPath))
+                    var targetDir = !string.IsNullOrEmpty(init.TargetAssemblyPath)
+                        ? Path.GetDirectoryName(init.TargetAssemblyPath)
+                        : Directory.GetCurrentDirectory();
+
+                    if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
+                    {
+                        Program.TargetDirectory = targetDir;
+                        PreloadTargetAssemblies(targetDir);
+                        TryLoadTargetAppResources(targetDir);
+                    }
+
+                    var xamlAssemblyPath = !string.IsNullOrEmpty(init.XamlAssemblyPath) && File.Exists(init.XamlAssemblyPath)
+                        ? init.XamlAssemblyPath
+                        : init.TargetAssemblyPath;
+
+                    if (!string.IsNullOrEmpty(xamlAssemblyPath) && File.Exists(xamlAssemblyPath))
                     {
                         try
                         {
-                            targetAssembly = Assembly.LoadFrom(init.TargetAssemblyPath);
-                            TryLoadTargetAppResources(targetAssembly);
+                            targetAssembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(xamlAssemblyPath);
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[Host] Error cargando ensamblado destino: {ex.Message}");
+                            Console.WriteLine($"[Host] Error cargando ensamblado XAML: {ex.Message}");
                         }
                     }
 
@@ -469,22 +485,151 @@ public sealed class ShowMeHostService
         });
     }
 
-    private static void TryLoadTargetAppResources(Assembly assembly)
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
     {
         try
         {
-            var appType = assembly.GetTypes().FirstOrDefault(t => typeof(Application).IsAssignableFrom(t) && !t.IsAbstract);
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t != null)!;
+        }
+        catch
+        {
+            return Enumerable.Empty<Type>();
+        }
+    }
+
+    private static void PreloadTargetAssemblies(string targetDir)
+    {
+        if (!Directory.Exists(targetDir)) return;
+
+        var loadedNames = new HashSet<string>(
+            AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetName().Name!)
+                .Where(n => !string.IsNullOrEmpty(n)),
+            StringComparer.OrdinalIgnoreCase);
+
+        var dllFiles = Directory.GetFiles(targetDir, "*.dll");
+        foreach (var dllPath in dllFiles)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(dllPath);
+
+            // Evitar colisión con ensamblados del host y core de Avalonia ya cargados
+            if (loadedNames.Contains(fileName))
+            {
+                continue;
+            }
+
+            try
+            {
+                AssemblyLoadContext.Default.LoadFromAssemblyPath(dllPath);
+                loadedNames.Add(fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Host] Aviso al precargar {fileName}: {ex.Message}");
+            }
+        }
+
+        try
+        {
+            var configFiles = Directory.GetFiles(targetDir, "*.runtimeconfig.json");
+            foreach (var cfgPath in configFiles)
+            {
+                var json = File.ReadAllText(cfgPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("runtimeOptions", out var ro) &&
+                    ro.TryGetProperty("configProperties", out var cp) &&
+                    cp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in cp.EnumerateObject())
+                    {
+                        var strVal = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                            ? prop.Value.GetString()
+                            : prop.Value.GetRawText();
+                        AppContext.SetData(prop.Name, strVal);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Host] Aviso al cargar runtimeconfig.json: {ex.Message}");
+        }
+    }
+
+    private static void TryLoadTargetAppResources(string targetDir)
+    {
+        try
+        {
+            Type? appType = null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic || string.IsNullOrEmpty(asm.Location)) continue;
+                if (!asm.Location.StartsWith(targetDir, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var candidate = GetLoadableTypes(asm).FirstOrDefault(t =>
+                    typeof(Application).IsAssignableFrom(t) &&
+                    !t.IsAbstract &&
+                    t != typeof(App));
+
+                if (candidate != null)
+                {
+                    appType = candidate;
+                    break;
+                }
+            }
+
             if (appType != null && Application.Current != null)
             {
                 if (Activator.CreateInstance(appType) is Application targetApp)
                 {
-                    foreach (var style in targetApp.Styles)
+                    try
                     {
+                        targetApp.Initialize();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Host] Aviso al inicializar Application destino ({appType.FullName}): {ex.Message}");
+                    }
+
+                    var hasFluentTheme = Application.Current.Styles.OfType<FluentTheme>().Any();
+                    var stylesToMove = targetApp.Styles.ToList();
+                    targetApp.Styles.Clear();
+                    foreach (var style in stylesToMove)
+                    {
+                        if (style is FluentTheme && hasFluentTheme)
+                        {
+                            continue;
+                        }
                         Application.Current.Styles.Add(style);
                     }
+
+                    if (Application.Current.Resources is ResourceDictionary hostDict && targetApp.Resources is ResourceDictionary targetDict)
+                    {
+                        var merged = targetDict.MergedDictionaries.ToList();
+                        targetDict.MergedDictionaries.Clear();
+                        foreach (var md in merged)
+                        {
+                            hostDict.MergedDictionaries.Add(md);
+                        }
+                    }
+
                     foreach (var res in targetApp.Resources)
                     {
                         Application.Current.Resources[res.Key] = res.Value;
+                    }
+
+                    foreach (var dt in targetApp.DataTemplates)
+                    {
+                        Application.Current.DataTemplates.Add(dt);
+                    }
+
+                    if (targetApp.ActualThemeVariant != null && targetApp.RequestedThemeVariant != null)
+                    {
+                        Application.Current.RequestedThemeVariant = targetApp.RequestedThemeVariant;
                     }
                 }
             }

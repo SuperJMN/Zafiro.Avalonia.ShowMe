@@ -49,7 +49,7 @@ GenericName=Avalonia XAML Previewer
 GenericName[es]=Previsualizador XAML de Avalonia
 Comment=Preview arbitrary Avalonia XAML using the host app context and official previewer
 Comment[es]=Previsualiza XAML/AXAML de Avalonia en su contexto de ejecución
-Exec=${TOOL_EXEC} %f
+Exec=${TOOL_EXEC} %U
 Icon=zafiro-avalonia-showme
 Terminal=false
 Categories=Development;GUIDesigner;Utility;
@@ -71,5 +71,17 @@ fi
 # Set default associations
 xdg-mime default zafiro-avalonia-showme.desktop application/x-axaml
 xdg-mime default zafiro-avalonia-showme.desktop application/x-xaml
+
+MIMEAPPS="${HOME}/.config/mimeapps.list"
+if [ -f "${MIMEAPPS}" ]; then
+    if grep -q "\[Added Associations\]" "${MIMEAPPS}"; then
+        if ! grep -A 50 "\[Added Associations\]" "${MIMEAPPS}" | grep -q "application/x-axaml="; then
+            sed -i '/\[Added Associations\]/a application/x-axaml=zafiro-avalonia-showme.desktop;' "${MIMEAPPS}"
+        fi
+        if ! grep -A 50 "\[Added Associations\]" "${MIMEAPPS}" | grep -q "application/x-xaml="; then
+            sed -i '/\[Added Associations\]/a application/x-xaml=zafiro-avalonia-showme.desktop;' "${MIMEAPPS}"
+        fi
+    fi
+fi
 
 echo "✅ Zafiro ShowMe desktop integration configured successfully!"

@@ -55,4 +55,32 @@ public class CommandLineArgsTests
         Assert.Equal("src/MyApp/MyApp.csproj", result.ProjectPath);
         Assert.False(result.ShowHelp);
     }
+
+    [Fact]
+    public void File_Uri_Is_Normalized_To_Local_Path()
+    {
+        var result = CommandLineArgs.Parse(["file:///home/user/Views/MyView.axaml"]);
+        Assert.Equal("/home/user/Views/MyView.axaml", result.FilePath);
+    }
+
+    [Fact]
+    public void File_Uri_With_Url_Encoding_Is_Decoded()
+    {
+        var result = CommandLineArgs.Parse(["file:///home/user/My%20Folder/My%20View.axaml"]);
+        Assert.Equal("/home/user/My Folder/My View.axaml", result.FilePath);
+    }
+
+    [Fact]
+    public void Project_Option_With_File_Uri_Is_Normalized()
+    {
+        var result = CommandLineArgs.Parse(["--project", "file:///home/user/Project/App.csproj"]);
+        Assert.Equal("/home/user/Project/App.csproj", result.ProjectPath);
+    }
+
+    [Fact]
+    public void Quoted_Path_Is_Trimmed()
+    {
+        var result = CommandLineArgs.Parse(["\"file:///home/user/Views/MyView.axaml\""]);
+        Assert.Equal("/home/user/Views/MyView.axaml", result.FilePath);
+    }
 }

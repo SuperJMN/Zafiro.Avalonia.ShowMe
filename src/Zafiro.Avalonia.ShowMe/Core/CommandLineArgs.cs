@@ -29,7 +29,7 @@ public sealed record CommandLineArgs(
 
             if (arg is "--project" or "-p" && i + 1 < args.Length)
             {
-                projectPath = args[++i];
+                projectPath = NormalizeFilePath(args[++i]);
             }
             else if (arg is "--theme" or "-t" && i + 1 < args.Length)
             {
@@ -45,11 +45,38 @@ public sealed record CommandLineArgs(
             }
             else if (!arg.StartsWith('-') && filePath == null)
             {
-                filePath = arg;
+                filePath = NormalizeFilePath(arg);
             }
         }
 
         return new CommandLineArgs(filePath, projectPath, theme, width, height, showHelp);
+    }
+
+    public static string NormalizeFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        var trimmed = path.Trim('\"', '\'');
+
+        if (trimmed.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) && uri.IsFile)
+            {
+                return uri.LocalPath;
+            }
+
+            var stripped = trimmed["file:".Length..].TrimStart('/');
+            if (!stripped.StartsWith('/') && (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()))
+            {
+                stripped = "/" + stripped;
+            }
+            return Uri.UnescapeDataString(stripped);
+        }
+
+        return trimmed;
     }
 
     public static void PrintHelp()

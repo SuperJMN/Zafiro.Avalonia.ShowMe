@@ -14,7 +14,7 @@ public sealed class PreviewTargetResolver
     {
         try
         {
-            var fullAxamlPath = Path.GetFullPath(axamlPath);
+            var fullAxamlPath = Path.GetFullPath(CommandLineArgs.NormalizeFilePath(axamlPath));
             if (!File.Exists(fullAxamlPath))
             {
                 return Result.Failure<PreviewTarget>($"El archivo AXAML no existe: '{fullAxamlPath}'");
@@ -32,7 +32,7 @@ public sealed class PreviewTargetResolver
             string hostProjectPath;
             if (!string.IsNullOrWhiteSpace(explicitProjectPath))
             {
-                hostProjectPath = Path.GetFullPath(explicitProjectPath);
+                hostProjectPath = Path.GetFullPath(CommandLineArgs.NormalizeFilePath(explicitProjectPath));
                 if (!File.Exists(hostProjectPath))
                 {
                     return Result.Failure<PreviewTarget>($"El proyecto host especificado no existe: '{hostProjectPath}'");

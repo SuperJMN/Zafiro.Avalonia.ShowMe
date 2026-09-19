@@ -14,6 +14,7 @@ using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Zafiro.Avalonia.ShowMe.Host.ResourceCatalog;
 using Zafiro.Avalonia.ShowMe.Protocol;
 
 namespace Zafiro.Avalonia.ShowMe.Host;
@@ -179,6 +180,7 @@ public sealed class ShowMeHostService
                         case PointerActionType.Up:
                             var btnUp = ConvertButton(pointer.Button);
                             window.MouseUp(pt, btnUp, modifiers);
+                            Dispatcher.UIThread.RunJobs();
                             break;
                         case PointerActionType.Wheel:
                             window.MouseWheel(pt, new Vector(pointer.DeltaX, pointer.DeltaY), modifiers);
@@ -262,6 +264,10 @@ public sealed class ShowMeHostService
                 }
             }
 
+            window.Styles.Clear();
+            window.Resources.Clear();
+            window.Content = null;
+
             if (loaded is Window userWindow)
             {
                 var content = userWindow.Content;
@@ -284,9 +290,22 @@ public sealed class ShowMeHostService
             {
                 window.Content = control;
             }
+            else if (loaded is Styles || loaded is IResourceDictionary || loaded is IStyle)
+            {
+                var title = loaded is Styles ? "Estilos" : loaded is IResourceDictionary ? "Diccionario de Recursos" : "Estilo";
+                window.Content = ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, title);
+            }
             else if (loaded != null)
             {
-                window.Content = new ContentControl { Content = loaded };
+                var group = ResourceExtractor.Extract(loaded, targetAssembly, "Recursos");
+                if (group.TotalItemCount > 0)
+                {
+                    window.Content = ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, "Recursos");
+                }
+                else
+                {
+                    window.Content = new ContentControl { Content = loaded };
+                }
             }
 
             if (window.Content is Control rootControl)
@@ -344,12 +363,10 @@ public sealed class ShowMeHostService
 
         try
         {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(2);
             var frame = window.CaptureRenderedFrame();
-            if (frame == null)
-            {
-                AvaloniaHeadlessPlatform.ForceRenderTimerTick(2);
-                frame = window.CaptureRenderedFrame();
-            }
             if (frame == null) return;
 
             using var fb = frame.Lock();

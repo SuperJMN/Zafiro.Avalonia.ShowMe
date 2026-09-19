@@ -48,6 +48,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public event Action? RequestResetZoom;
     public event Action? RequestFit;
     public event Action<Point, IReadOnlyList<InspectMenuItemViewModel>>? RequestShowContextMenu;
+    public Action<Action> DispatchToUI { get; set; } = action => Dispatcher.UIThread.Post(action);
 
     public PreviewTarget Target { get; }
 
@@ -643,7 +644,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     private void OnContextMenuHitTestResultReceived(ContextMenuHitTestResponseMessage hit)
     {
-        Dispatcher.UIThread.Post(() =>
+        void Handle()
         {
             if (hit.Items == null || hit.Items.Count == 0) return;
 
@@ -666,7 +667,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             }).ToList();
 
             RequestShowContextMenu?.Invoke(new Point(hit.X, hit.Y), menuItems);
-        });
+        }
+
+        DispatchToUI(Handle);
     }
 
     private void SetupFileWatcher()

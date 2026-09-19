@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Zafiro.Avalonia.ShowMe\Zafiro.Avalonia.ShowMe.csproj" />
     <ProjectReference Include="..\..\src\Zafiro.Avalonia.ShowMe.Protocol\Zafiro.Avalonia.ShowMe.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Zafiro.Avalonia.ShowMe.Host\Zafiro.Avalonia.ShowMe.Host.csproj" />
   </ItemGroup>
 
 </Project>

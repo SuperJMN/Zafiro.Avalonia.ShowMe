@@ -40,7 +40,9 @@ public class PreviewSessionInspectorTests
             600);
 
         var server = new PreviewServer(target, 800, 600);
-        return new PreviewSessionViewModel(target, server, new FakeStorageService());
+        var session = new PreviewSessionViewModel(target, server, new FakeStorageService());
+        session.DispatchToUI = a => a();
+        return session;
     }
 
     [Fact]
@@ -233,7 +235,6 @@ public class PreviewSessionInspectorTests
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
         );
         method?.Invoke(session, [response]);
-        global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(triggeredPoint);
         Assert.Equal(120, triggeredPoint.Value.X);

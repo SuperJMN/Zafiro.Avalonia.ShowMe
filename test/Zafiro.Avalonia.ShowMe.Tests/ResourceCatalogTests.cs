@@ -222,7 +222,7 @@ public class ResourceCatalogTests
     }
 
     [Fact]
-    public void ResourceCatalogView_SwitchToTreeView_DoesNotCrash()
+    public void ResourceCatalogView_ShowSelection_DoesNotCrash()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Colors.axaml";
         if (!File.Exists(path)) return;
@@ -231,6 +231,10 @@ public class ResourceCatalogTests
         var loaded = global::Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(xaml, null, null, null, true);
         var catalog = (ResourceCatalogView)ResourceCatalogBuilder.BuildCatalog(loaded, null, "Colors.axaml");
 
-        catalog.SwitchToTreeView();
+        catalog.ShowSelection(null, "All", "Blue");
+        catalog.ShowSelection(null, "All", null);
+
+        Assert.NotNull(catalog.RootGroup);
+        Assert.True(catalog.AllFlatItems.Count > 10);
     }
 }

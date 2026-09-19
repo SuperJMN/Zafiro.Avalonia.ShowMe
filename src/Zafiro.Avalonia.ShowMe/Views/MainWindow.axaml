@@ -177,6 +177,21 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center"
                             IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}">
 
+                    <!-- Botón Catálogo de Recursos Toggle (Visible cuando el archivo tiene recursos o estilos) -->
+                    <ToggleButton Classes="toolbar"
+                                  IsVisible="{Binding CurrentSession.IsCatalogActive, FallbackValue=False}"
+                                  IsChecked="{Binding CurrentSession.IsSidebarVisible, Mode=TwoWay}"
+                                  ToolTip.Tip="Mostrar u ocultar el panel de recursos y estilos">
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <PathIcon Data="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19M7,7H9V9H7V7M11,7H17V9H11V7M7,11H9V13H7V11M11,11H17V13H11V11M7,15H9V17H7V15M11,15H17V17H11V15Z"
+                                      Width="12" Height="12" Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Center" />
+                            <TextBlock Text="Recursos" FontSize="11.5" VerticalAlignment="Center" />
+                            <Border Background="{DynamicResource SystemAccentColor}" CornerRadius="8" Padding="5,1">
+                                <TextBlock Text="{Binding CurrentSession.CatalogItemCount}" FontSize="9.5" FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </StackPanel>
+                    </ToggleButton>
+
                     <!-- Modo Inspector Toggle -->
                     <ToggleButton Classes="toolbar"
                                   IsChecked="{Binding CurrentSession.IsInspectorActive, Mode=TwoWay}"
@@ -293,10 +308,190 @@
         </Border>
 
         <!-- ================= ÁREA CENTRAL DE PREVISUALIZACIÓN ================= -->
-        <Panel Grid.Row="1">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
             
-            <!-- FONDO CUADRICULADO NEUTRO (Tipo lienzo gráfico) -->
-            <Panel Background="{DynamicResource SystemChromeLowColor}" />
+            <!-- PANEL LATERAL NATIVO: CATÁLOGO DE RECURSOS Y ESTILOS -->
+            <Border Grid.Column="0"
+                    Width="320"
+                    IsVisible="{Binding CurrentSession.IsSidebarVisible, FallbackValue=False}"
+                    Background="{DynamicResource SystemChromeMediumColor}"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="0,0,1,0"
+                    ZIndex="10">
+                <Grid RowDefinitions="Auto,Auto,Auto,*">
+                    <!-- 1. Cabecera del Sidebar -->
+                    <Border Grid.Row="0"
+                            Padding="12,10,10,8"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <PathIcon Data="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19M7,7H9V9H7V7M11,7H17V9H11V7M7,11H9V13H7V11M11,11H17V13H11V11M7,15H9V17H7V15M11,15H17V17H11V15Z"
+                                          Width="14" Height="14" Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding CurrentSession.CatalogTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12.5"
+                                           MaxWidth="180"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1" Margin="6,0,0,0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource SystemAccentColorDark1}" CornerRadius="10" Padding="6,1.5">
+                                <TextBlock Text="{Binding CurrentSession.CatalogItemCount}"
+                                           FontSize="10" FontWeight="Bold" Foreground="White" />
+                            </Border>
+
+                            <Button Grid.Column="2" Classes="toolbar icon"
+                                    Command="{Binding CurrentSession.ToggleSidebarCommand}"
+                                    Padding="4" ToolTip.Tip="Ocultar panel lateral">
+                                <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- 2. Caja de búsqueda -->
+                    <Border Grid.Row="1" Padding="10,8,10,6">
+                        <TextBox Text="{Binding CurrentSession.CatalogSearchText, Mode=TwoWay}"
+                                 PlaceholderText="Buscar recursos o estilos..."
+                                 FontSize="11.5"
+                                 CornerRadius="4"
+                                 Padding="8,5">
+                            <TextBox.InnerLeftContent>
+                                <PathIcon Data="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
+                                          Width="11" Height="11" Margin="8,0,4,0" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </TextBox.InnerLeftContent>
+                        </TextBox>
+                    </Border>
+
+                    <!-- 3. Barra de Modos y Acciones -->
+                    <Border Grid.Row="2" Padding="10,2,10,8" BorderBrush="{DynamicResource SystemChromeHighColor}" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Border Grid.Column="0" Classes="toolbar-group" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button Classes="toolbar-group-btn"
+                                            Classes.active="{Binding CurrentSession.IsTreeMode}"
+                                            Command="{Binding CurrentSession.SetTreeModeCommand}"
+                                            ToolTip.Tip="Vista jerárquica en árbol">
+                                        <TextBlock Text="⑂ Árbol" FontSize="11" />
+                                    </Button>
+
+                                    <Button Classes="toolbar-group-btn"
+                                            Classes.active="{Binding CurrentSession.IsFlatMode}"
+                                            Command="{Binding CurrentSession.SetFlatModeCommand}"
+                                            ToolTip.Tip="Lista plana de recursos">
+                                        <TextBlock Text="≡ Lista" FontSize="11" />
+                                    </Button>
+
+                                    <Button Classes="toolbar-group-btn"
+                                            IsVisible="{Binding CurrentSession.HasPreviewWith, FallbackValue=False}"
+                                            Classes.active="{Binding CurrentSession.IsPreviewWithMode}"
+                                            Command="{Binding CurrentSession.SelectPreviewWithCommand}"
+                                            ToolTip.Tip="Mostrar control Design.PreviewWith">
+                                        <TextBlock Text="🖼 Vista previa" FontSize="11" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <Button Grid.Column="1" Classes="toolbar"
+                                    Command="{Binding CurrentSession.SelectAllCardsCommand}"
+                                    ToolTip.Tip="Mostrar todas las tarjetas en la cuadrícula">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="👁" FontSize="11" />
+                                    <TextBlock Text="Ver todos" FontSize="11" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- 4. Contenido: TreeView o ListBox -->
+                    <Panel Grid.Row="3">
+                        <!-- Vista Árbol -->
+                        <TreeView ItemsSource="{Binding CurrentSession.CatalogTreeNodes}"
+                                  SelectedItem="{Binding CurrentSession.SelectedCatalogNode, Mode=TwoWay}"
+                                  IsVisible="{Binding CurrentSession.IsTreeMode}"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                            <TreeView.DataTemplates>
+                                <TreeDataTemplate DataType="vm:CatalogGroupNodeViewModel" ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,2">
+                                        <TextBlock Text="{Binding Icon}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="11.5" VerticalAlignment="Center" />
+                                        <Border Background="{DynamicResource SystemChromeHighColor}" CornerRadius="8" Padding="5,1" Margin="4,0,0,0">
+                                            <TextBlock Text="{Binding TotalItemCount}" FontSize="9" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                                        </Border>
+                                    </StackPanel>
+                                </TreeDataTemplate>
+
+                                <DataTemplate DataType="vm:CatalogItemViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                        <Border Grid.Column="0" Width="14" Height="14" CornerRadius="2" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                IsVisible="{Binding ColorBrush, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                Background="{Binding ColorBrush}"
+                                                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1" />
+                                        <TextBlock Grid.Column="0" Text="{Binding KindIcon}" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                   IsVisible="{Binding ColorBrush, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding KeyOrSelector}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DisplaySubtitle}" FontSize="9.5" Foreground="{DynamicResource SystemBaseMediumColor}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <Border Grid.Column="2" Background="{Binding KindBadgeBrush}" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding KindText}" FontSize="8.5" FontWeight="SemiBold" Foreground="White" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </TreeView.DataTemplates>
+                        </TreeView>
+
+                        <!-- Vista Lista Plana -->
+                        <ListBox ItemsSource="{Binding CurrentSession.FilteredFlatItems}"
+                                 SelectedItem="{Binding CurrentSession.SelectedCatalogNode, Mode=TwoWay}"
+                                 IsVisible="{Binding CurrentSession.IsFlatMode}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="vm:CatalogItemViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                        <Border Grid.Column="0" Width="14" Height="14" CornerRadius="2" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                IsVisible="{Binding ColorBrush, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                Background="{Binding ColorBrush}"
+                                                BorderBrush="{DynamicResource SystemBaseLowColor}" BorderThickness="1" />
+                                        <TextBlock Grid.Column="0" Text="{Binding KindIcon}" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                   IsVisible="{Binding ColorBrush, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding KeyOrSelector}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DisplaySubtitle}" FontSize="9.5" Foreground="{DynamicResource SystemBaseMediumColor}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <Border Grid.Column="2" Background="{Binding KindBadgeBrush}" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding KindText}" FontSize="8.5" FontWeight="SemiBold" Foreground="White" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Vista de PreviewWith activa -->
+                        <StackPanel IsVisible="{Binding CurrentSession.IsPreviewWithMode}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="20">
+                            <TextBlock Text="🖼" FontSize="28" HorizontalAlignment="Center" />
+                            <TextBlock Text="Vista previa oficial activa"
+                                       FontWeight="SemiBold" FontSize="12" TextAlignment="Center" />
+                            <TextBlock Text="Mostrando el control declarado en Design.PreviewWith."
+                                       Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="11" TextAlignment="Center" TextWrapping="Wrap" />
+                            <Button Classes="toolbar" Command="{Binding CurrentSession.SetTreeModeCommand}" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                <TextBlock Text="Explorar recursos" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Panel>
+                </Grid>
+            </Border>
+
+            <!-- PANEL CENTRAL DE PREVISUALIZACIÓN -->
+            <Panel Grid.Column="1">
+                <!-- FONDO CUADRICULADO NEUTRO (Tipo lienzo gráfico) -->
+                <Panel Background="{DynamicResource SystemChromeLowColor}" />
 
             <!-- ESTADO VACÍO: ZONA DE DRAG & DROP -->
             <Border IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNull}}"
@@ -617,6 +812,7 @@
             </Border>
 
         </Panel>
+        </Grid>
 
         <!-- ================= BARRA DE ESTADO ================= -->
         <Border Grid.Row="2"

@@ -30,6 +30,7 @@ public sealed class ShowMeHostService
     private double currentHeight = 600;
     private long lastMoveFrameTime = System.Diagnostics.Stopwatch.GetTimestamp();
     private readonly SemaphoreSlim sendLock = new(1, 1);
+    private ResourceCatalogView? currentCatalogView;
 
     public ShowMeHostService(TcpClient client)
     {
@@ -234,6 +235,14 @@ public sealed class ShowMeHostService
                     await HandleContextMenuHitTestAsync(contextReq, ct);
                 });
                 break;
+
+            case SelectCatalogItemMessage sel:
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    currentCatalogView?.ShowSelection(sel.ItemId, sel.ViewMode, sel.FilterQuery);
+                    RenderAndSendFrame();
+                });
+                break;
         }
     }
 
@@ -267,6 +276,7 @@ public sealed class ShowMeHostService
             window.Styles.Clear();
             window.Resources.Clear();
             window.Content = null;
+            currentCatalogView = null;
 
             if (loaded is Window userWindow)
             {
@@ -293,14 +303,20 @@ public sealed class ShowMeHostService
             else if (loaded is Styles || loaded is IResourceDictionary || loaded is IStyle)
             {
                 var title = loaded is Styles ? "Estilos" : loaded is IResourceDictionary ? "Diccionario de Recursos" : "Estilo";
-                window.Content = ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, title);
+                var catView = (ResourceCatalogView)ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, title);
+                currentCatalogView = catView;
+                window.Content = catView;
+                SendCatalogInfo(catView, title);
             }
             else if (loaded != null)
             {
                 var group = ResourceExtractor.Extract(loaded, targetAssembly, "Recursos");
                 if (group.TotalItemCount > 0)
                 {
-                    window.Content = ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, "Recursos");
+                    var catView = (ResourceCatalogView)ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, "Recursos");
+                    currentCatalogView = catView;
+                    window.Content = catView;
+                    SendCatalogInfo(catView, "Recursos");
                 }
                 else
                 {
@@ -681,12 +697,84 @@ public sealed class ShowMeHostService
 
     private void SendStatus(bool success, string? error, int? line, int? col)
     {
+        SendMessage(new XamlStatusMessage(success, error, line, col));
+    }
+
+    private void SendCatalogInfo(ResourceCatalogView catView, string title)
+    {
+        try
+        {
+            var rootGroupDto = MapGroupToDto(catView.RootGroup);
+            var allItemsDto = catView.AllFlatItems.Select(MapItemToDto).ToList();
+            var msg = new CatalogInfoMessage(
+                Title: title,
+                HasPreviewWith: catView.PreviewWithControl != null,
+                RootGroup: rootGroupDto,
+                AllItems: allItemsDto
+            );
+            SendMessage(msg);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Host] Error enviando CatalogInfo: {ex}");
+        }
+    }
+
+    private static CatalogGroupDto MapGroupToDto(ResourceGroupModel group)
+    {
+        return new CatalogGroupDto(
+            Title: group.Title,
+            Icon: group.Icon,
+            OriginPath: group.OriginPath,
+            Items: group.Items.Select(MapItemToDto).ToList(),
+            Subgroups: group.Subgroups.Select(MapGroupToDto).ToList()
+        );
+    }
+
+    private static CatalogItemDto MapItemToDto(ResourceItemModel item)
+    {
+        var kindDto = item.Kind switch
+        {
+            ResourceItemKind.ControlTheme => CatalogItemKindDto.ControlTheme,
+            ResourceItemKind.Style => CatalogItemKindDto.Style,
+            ResourceItemKind.Brush => CatalogItemKindDto.Brush,
+            ResourceItemKind.Color => CatalogItemKindDto.Color,
+            ResourceItemKind.Template => CatalogItemKindDto.Template,
+            _ => CatalogItemKindDto.Other
+        };
+
+        string? summary = null;
+        if (item.RawValue is Color c)
+        {
+            summary = $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+        }
+        else if (item.RawValue is ISolidColorBrush scb)
+        {
+            var col = scb.Color;
+            summary = $"#{col.A:X2}{col.R:X2}{col.G:X2}{col.B:X2}";
+        }
+
+        return new CatalogItemDto(
+            Id: item.Id,
+            KeyOrSelector: item.KeyOrSelector,
+            Kind: kindDto,
+            GroupPath: item.OriginPath,
+            ValueSummary: summary
+        );
+    }
+
+    private void SendMessage(ShowMeMessage msg)
+    {
         Task.Run(async () =>
         {
             await sendLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                await ShowMeFraming.WriteControlMessageAsync(stream, new XamlStatusMessage(success, error, line, col)).ConfigureAwait(false);
+                await ShowMeFraming.WriteControlMessageAsync(stream, msg).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Host] Error enviando mensaje {msg.GetType().Name}: {ex}");
             }
             finally
             {

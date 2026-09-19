@@ -208,6 +208,107 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
+    // Catálogo de Recursos (Shell nativa)
+    private bool isCatalogActive;
+    private bool isSidebarVisible = true;
+    private string catalogTitle = "Catálogo de Recursos";
+    private int catalogItemCount;
+    private bool hasPreviewWith;
+    private string sidebarMode = "Tree"; // "Tree" | "Flat" | "PreviewWith"
+    private string catalogSearchText = "";
+    private object? selectedCatalogNode;
+
+    public bool IsCatalogActive
+    {
+        get => isCatalogActive;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref isCatalogActive, value);
+            this.RaisePropertyChanged(nameof(IsSidebarVisible));
+        }
+    }
+
+    public bool IsSidebarVisible
+    {
+        get => isSidebarVisible && isCatalogActive;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref isSidebarVisible, value);
+            this.RaisePropertyChanged(nameof(IsSidebarVisible));
+        }
+    }
+
+    public string CatalogTitle
+    {
+        get => catalogTitle;
+        private set => this.RaiseAndSetIfChanged(ref catalogTitle, value);
+    }
+
+    public int CatalogItemCount
+    {
+        get => catalogItemCount;
+        private set => this.RaiseAndSetIfChanged(ref catalogItemCount, value);
+    }
+
+    public bool HasPreviewWith
+    {
+        get => hasPreviewWith;
+        private set => this.RaiseAndSetIfChanged(ref hasPreviewWith, value);
+    }
+
+    public bool IsTreeMode => SidebarMode == "Tree";
+    public bool IsFlatMode => SidebarMode == "Flat";
+    public bool IsPreviewWithMode => SidebarMode == "PreviewWith";
+
+    public string SidebarMode
+    {
+        get => sidebarMode;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref sidebarMode, value);
+            this.RaisePropertyChanged(nameof(IsTreeMode));
+            this.RaisePropertyChanged(nameof(IsFlatMode));
+            this.RaisePropertyChanged(nameof(IsPreviewWithMode));
+            if (value == "PreviewWith")
+            {
+                server.SelectCatalogItem(null, "PreviewWith");
+            }
+            else if (selectedCatalogNode == null)
+            {
+                server.SelectCatalogItem(null, "All", catalogSearchText);
+            }
+        }
+    }
+
+    public string CatalogSearchText
+    {
+        get => catalogSearchText;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref catalogSearchText, value);
+            ApplyCatalogFilter(value);
+        }
+    }
+
+    public System.Collections.ObjectModel.ObservableCollection<CatalogGroupNodeViewModel> CatalogTreeNodes { get; } = new();
+    public System.Collections.ObjectModel.ObservableCollection<CatalogItemViewModel> CatalogFlatItems { get; } = new();
+    public System.Collections.ObjectModel.ObservableCollection<CatalogItemViewModel> FilteredFlatItems { get; } = new();
+
+    public object? SelectedCatalogNode
+    {
+        get => selectedCatalogNode;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref selectedCatalogNode, value);
+            OnCatalogSelectionChanged(value);
+        }
+    }
+
+    public System.Windows.Input.ICommand ToggleSidebarCommand { get; }
+    public System.Windows.Input.ICommand SetTreeModeCommand { get; }
+    public System.Windows.Input.ICommand SetFlatModeCommand { get; }
+    public System.Windows.Input.ICommand SelectAllCardsCommand { get; }
+    public System.Windows.Input.ICommand SelectPreviewWithCommand { get; }
     public System.Windows.Input.ICommand SaveImageCommand { get; }
     public System.Windows.Input.ICommand CopyImageCommand { get; }
     public System.Windows.Input.ICommand ReloadCommand { get; }
@@ -273,6 +374,20 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         });
 
         ToggleInspectorCommand = new DelegateCommand(() => IsInspectorActive = !IsInspectorActive);
+        ToggleSidebarCommand = new DelegateCommand(() => IsSidebarVisible = !IsSidebarVisible);
+        SetTreeModeCommand = new DelegateCommand(() => SidebarMode = "Tree");
+        SetFlatModeCommand = new DelegateCommand(() => SidebarMode = "Flat");
+        SelectAllCardsCommand = new DelegateCommand(() =>
+        {
+            SelectedCatalogNode = null;
+            server.SelectCatalogItem(null, "All", CatalogSearchText);
+        });
+        SelectPreviewWithCommand = new DelegateCommand(() =>
+        {
+            SelectedCatalogNode = null;
+            SidebarMode = "PreviewWith";
+            server.SelectCatalogItem(null, "PreviewWith");
+        });
         ClearSelectionCommand = new DelegateCommand(() =>
         {
             SelectedElement = null;
@@ -284,6 +399,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         server.XamlStatusReceived += OnXamlStatusReceived;
         server.HitTestResultReceived += OnHitTestResultReceived;
         server.ContextMenuHitTestResultReceived += OnContextMenuHitTestResultReceived;
+        server.CatalogInfoReceived += OnCatalogInfoReceived;
         server.StatusChanged += s => Dispatcher.UIThread.Post(() => Status = s);
         server.ErrorOccurred += err => Dispatcher.UIThread.Post(() =>
         {
@@ -744,8 +860,85 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
+    private void OnCatalogInfoReceived(CatalogInfoMessage msg)
+    {
+        DispatchToUI(() =>
+        {
+            CatalogTreeNodes.Clear();
+            CatalogFlatItems.Clear();
+            FilteredFlatItems.Clear();
+
+            CatalogTitle = msg.Title;
+            HasPreviewWith = msg.HasPreviewWith;
+            CatalogItemCount = msg.AllItems.Count;
+            IsCatalogActive = msg.AllItems.Count > 0;
+            isSidebarVisible = true;
+            this.RaisePropertyChanged(nameof(IsSidebarVisible));
+
+            if (msg.RootGroup != null)
+            {
+                CatalogTreeNodes.Add(new CatalogGroupNodeViewModel(msg.RootGroup));
+            }
+
+            foreach (var item in msg.AllItems)
+            {
+                var vm = new CatalogItemViewModel(item);
+                CatalogFlatItems.Add(vm);
+                FilteredFlatItems.Add(vm);
+            }
+
+            if (HasPreviewWith)
+            {
+                sidebarMode = "PreviewWith";
+            }
+            else
+            {
+                sidebarMode = "Tree";
+            }
+            this.RaisePropertyChanged(nameof(SidebarMode));
+            this.RaisePropertyChanged(nameof(IsTreeMode));
+            this.RaisePropertyChanged(nameof(IsFlatMode));
+            this.RaisePropertyChanged(nameof(IsPreviewWithMode));
+        });
+    }
+
+    private void ApplyCatalogFilter(string query)
+    {
+        foreach (var node in CatalogTreeNodes)
+        {
+            node.ApplyFilter(query);
+        }
+
+        FilteredFlatItems.Clear();
+        foreach (var item in CatalogFlatItems)
+        {
+            if (item.Matches(query))
+            {
+                FilteredFlatItems.Add(item);
+            }
+        }
+
+        if (selectedCatalogNode == null)
+        {
+            server.SelectCatalogItem(null, "All", query);
+        }
+    }
+
+    private void OnCatalogSelectionChanged(object? selected)
+    {
+        if (selected is CatalogItemViewModel item)
+        {
+            server.SelectCatalogItem(item.Id, "Single");
+        }
+        else if (selected is CatalogGroupNodeViewModel group)
+        {
+            server.SelectCatalogItem(group.Title, "Group");
+        }
+    }
+
     public void Dispose()
     {
+        server.CatalogInfoReceived -= OnCatalogInfoReceived;
         dragDebounceCts?.Dispose();
         fileWatcher?.Dispose();
         server.Dispose();

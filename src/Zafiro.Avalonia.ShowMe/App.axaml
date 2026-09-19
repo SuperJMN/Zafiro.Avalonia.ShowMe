@@ -84,6 +84,10 @@
             <Setter Property="Width" Value="26" />
             <Setter Property="Padding" Value="0" />
         </Style>
+        <Style Selector="Button.toolbar-group-btn.active">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
 
         <Style Selector="Border.drop-zone">
             <Setter Property="Background" Value="{DynamicResource SystemChromeLowColor}" />

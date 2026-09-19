@@ -42,6 +42,8 @@ public enum KeyActionType
 [JsonDerivedType(typeof(ContextMenuHitTestRequestMessage), "ContextMenuHitTestRequest")]
 [JsonDerivedType(typeof(ContextMenuHitTestResponseMessage), "ContextMenuHitTestResponse")]
 [JsonDerivedType(typeof(XamlStatusMessage), "XamlStatus")]
+[JsonDerivedType(typeof(CatalogInfoMessage), "CatalogInfo")]
+[JsonDerivedType(typeof(SelectCatalogItemMessage), "SelectCatalogItem")]
 public abstract record ShowMeMessage;
 
 public record InitMessage(
@@ -142,3 +144,43 @@ public record XamlStatusMessage(
     int? LineNumber = null,
     int? LinePosition = null
 ) : ShowMeMessage;
+
+public enum CatalogItemKindDto
+{
+    ControlTheme,
+    Style,
+    Brush,
+    Color,
+    Template,
+    Other
+}
+
+public record CatalogItemDto(
+    string Id,
+    string KeyOrSelector,
+    CatalogItemKindDto Kind,
+    string? GroupPath = null,
+    string? ValueSummary = null
+);
+
+public record CatalogGroupDto(
+    string Title,
+    string Icon,
+    string? OriginPath,
+    List<CatalogItemDto> Items,
+    List<CatalogGroupDto> Subgroups
+);
+
+public record CatalogInfoMessage(
+    string Title,
+    bool HasPreviewWith,
+    CatalogGroupDto RootGroup,
+    List<CatalogItemDto> AllItems
+) : ShowMeMessage;
+
+public record SelectCatalogItemMessage(
+    string? ItemId,
+    string ViewMode, // "All", "Single", "Group", "PreviewWith"
+    string? FilterQuery = null
+) : ShowMeMessage;
+

@@ -26,6 +26,7 @@ public sealed class PreviewServer : IDisposable
     public event Action<XamlStatusMessage>? XamlStatusReceived;
     public event Action<HitTestResponseMessage>? HitTestResultReceived;
     public event Action<ContextMenuHitTestResponseMessage>? ContextMenuHitTestResultReceived;
+    public event Action<CatalogInfoMessage>? CatalogInfoReceived;
     public event Action<string>? StatusChanged;
     public event Action<string>? ErrorOccurred;
     public event Action<string>? LogReceived;
@@ -177,6 +178,10 @@ public sealed class PreviewServer : IDisposable
                 {
                     ContextMenuHitTestResultReceived?.Invoke(ctxHit);
                 }
+                else if (packet is CatalogInfoMessage catInfo)
+                {
+                    CatalogInfoReceived?.Invoke(catInfo);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -257,6 +262,11 @@ public sealed class PreviewServer : IDisposable
     {
         var reqId = Guid.NewGuid().ToString();
         _ = SendMessageAsync(new ContextMenuHitTestRequestMessage(reqId, x, y), cts.Token);
+    }
+
+    public void SelectCatalogItem(string? itemId, string viewMode, string? filterQuery = null)
+    {
+        _ = SendMessageAsync(new SelectCatalogItemMessage(itemId, viewMode, filterQuery), cts.Token);
     }
 
     private async Task SendMessageAsync(ShowMeMessage msg, CancellationToken ct)

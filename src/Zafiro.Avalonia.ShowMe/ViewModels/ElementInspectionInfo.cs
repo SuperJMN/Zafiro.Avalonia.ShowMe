@@ -23,4 +23,10 @@ public sealed record ElementInspectionInfo(
         : "";
 
     public string ClassesText => Classes.Count > 0 ? string.Join(" ", Classes) : "";
+
+    public string DimensionsText => $"{Bounds.Width:F0} × {Bounds.Height:F0} px";
+
+    public string HoverBadgeText => !string.IsNullOrWhiteSpace(ElementName)
+        ? $"{TypeName} #{ElementName}  {Bounds.Width:F0} × {Bounds.Height:F0} px"
+        : $"{TypeName}  {Bounds.Width:F0} × {Bounds.Height:F0} px";
 }

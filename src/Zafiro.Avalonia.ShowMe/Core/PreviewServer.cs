@@ -242,10 +242,10 @@ public sealed class PreviewServer : IDisposable
         _ = SendMessageAsync(new KeyInputMessage(action, keyCode, text, alt, ctrl, shift), cts.Token);
     }
 
-    public void RequestHitTest(double x, double y)
+    public void RequestHitTest(double x, double y, bool isHover = false)
     {
         var reqId = Guid.NewGuid().ToString();
-        _ = SendMessageAsync(new HitTestRequestMessage(reqId, x, y), cts.Token);
+        _ = SendMessageAsync(new HitTestRequestMessage(reqId, x, y, isHover), cts.Token);
     }
 
     private async Task SendMessageAsync(ShowMeMessage msg, CancellationToken ct)

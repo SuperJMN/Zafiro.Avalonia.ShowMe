@@ -87,7 +87,8 @@ public record KeyInputMessage(
 public record HitTestRequestMessage(
     string RequestId,
     double X,
-    double Y
+    double Y,
+    bool IsHover = false
 ) : ShowMeMessage;
 
 public record HitTestResponseMessage(
@@ -104,7 +105,8 @@ public record HitTestResponseMessage(
     double BoundsHeight = 0,
     List<string>? Classes = null,
     List<string>? AncestorTree = null,
-    Dictionary<string, string>? Properties = null
+    Dictionary<string, string>? Properties = null,
+    bool IsHover = false
 ) : ShowMeMessage;
 
 public record XamlStatusMessage(

@@ -34,9 +34,14 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private CancellationTokenSource? dragDebounceCts;
     private DimensionPreset? selectedPreset;
 
-    private bool isInspectorActive;
+    private bool isInspectorActive = true;
     private ElementInspectionInfo? selectedElement;
     private Rect? selectionBounds;
+    private ElementInspectionInfo? hoveredElement;
+
+    private bool isHoverRequestPending;
+    private Point? pendingHoverPoint;
+    private long lastHoverRequestTimestamp;
 
     public event Action? RequestZoomIn;
     public event Action? RequestZoomOut;
@@ -119,10 +124,12 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         set
         {
             this.RaiseAndSetIfChanged(ref isInspectorActive, value);
+            this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
             if (!value)
             {
                 SelectedElement = null;
                 SelectionBounds = null;
+                ClearHover();
             }
         }
     }
@@ -130,8 +137,27 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public ElementInspectionInfo? SelectedElement
     {
         get => selectedElement;
-        private set => this.RaiseAndSetIfChanged(ref selectedElement, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref selectedElement, value);
+            this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
+        }
     }
+
+    public ElementInspectionInfo? HoveredElement
+    {
+        get => hoveredElement;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref hoveredElement, value);
+            this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
+        }
+    }
+
+    public bool IsHoverAdornerVisible =>
+        IsInspectorActive &&
+        HoveredElement != null &&
+        (SelectedElement == null || SelectedElement.Bounds != HoveredElement.Bounds);
 
     public Rect? SelectionBounds
     {
@@ -335,13 +361,37 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             if (action == PointerActionType.Down)
             {
-                server.RequestHitTest(pt.X, pt.Y);
+                server.RequestHitTest(pt.X, pt.Y, isHover: false);
+            }
+            else if (action == PointerActionType.Move)
+            {
+                RequestHoverHitTest(pt);
             }
         }
         else
         {
+            ClearHover();
             server.SendPointerEvent(action, pt.X, pt.Y, button, delta.X, delta.Y, alt, ctrl, shift);
         }
+    }
+
+    private void RequestHoverHitTest(Point pt)
+    {
+        if (isHoverRequestPending && Stopwatch.GetElapsedTime(lastHoverRequestTimestamp).TotalMilliseconds < 200)
+        {
+            pendingHoverPoint = pt;
+            return;
+        }
+
+        lastHoverRequestTimestamp = Stopwatch.GetTimestamp();
+        isHoverRequestPending = true;
+        server.RequestHitTest(pt.X, pt.Y, isHover: true);
+    }
+
+    public void ClearHover()
+    {
+        pendingHoverPoint = null;
+        HoveredElement = null;
     }
 
     public void ClearSelection()
@@ -480,26 +530,59 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (hit.Found)
+            if (hit.IsHover)
             {
-                var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
-                SelectedElement = new ElementInspectionInfo(
-                    TypeName: hit.TypeName,
-                    ElementName: hit.ElementName,
-                    LineNumber: hit.LineNumber,
-                    LinePosition: hit.LinePosition,
-                    SourceUri: hit.SourceUri,
-                    Bounds: bounds,
-                    Classes: hit.Classes ?? [],
-                    Ancestors: hit.AncestorTree ?? [],
-                    Properties: hit.Properties ?? new Dictionary<string, string>()
-                );
-                SelectionBounds = bounds;
+                if (hit.Found)
+                {
+                    var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
+                    HoveredElement = new ElementInspectionInfo(
+                        TypeName: hit.TypeName,
+                        ElementName: hit.ElementName,
+                        LineNumber: hit.LineNumber,
+                        LinePosition: hit.LinePosition,
+                        SourceUri: hit.SourceUri,
+                        Bounds: bounds,
+                        Classes: hit.Classes ?? [],
+                        Ancestors: hit.AncestorTree ?? [],
+                        Properties: hit.Properties ?? new Dictionary<string, string>()
+                    );
+                }
+                else
+                {
+                    HoveredElement = null;
+                }
+
+                isHoverRequestPending = false;
+                if (pendingHoverPoint.HasValue)
+                {
+                    var next = pendingHoverPoint.Value;
+                    pendingHoverPoint = null;
+                    RequestHoverHitTest(next);
+                }
             }
             else
             {
-                SelectedElement = null;
-                SelectionBounds = null;
+                if (hit.Found)
+                {
+                    var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
+                    SelectedElement = new ElementInspectionInfo(
+                        TypeName: hit.TypeName,
+                        ElementName: hit.ElementName,
+                        LineNumber: hit.LineNumber,
+                        LinePosition: hit.LinePosition,
+                        SourceUri: hit.SourceUri,
+                        Bounds: bounds,
+                        Classes: hit.Classes ?? [],
+                        Ancestors: hit.AncestorTree ?? [],
+                        Properties: hit.Properties ?? new Dictionary<string, string>()
+                    );
+                    SelectionBounds = bounds;
+                }
+                else
+                {
+                    SelectedElement = null;
+                    SelectionBounds = null;
+                }
             }
         });
     }

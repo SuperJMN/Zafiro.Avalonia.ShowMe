@@ -24,6 +24,7 @@ public partial class MainWindow : Window
             PreviewImage.PointerPressed += OnPreviewPointerPressed;
             PreviewImage.PointerReleased += OnPreviewPointerReleased;
             PreviewImage.PointerMoved += OnPreviewPointerMoved;
+            PreviewImage.PointerExited += OnPreviewPointerExited;
         }
 
         DataContextChanged += OnDataContextChanged;
@@ -177,6 +178,10 @@ public partial class MainWindow : Window
         bool alt = keyMods.HasFlag(KeyModifiers.Alt);
         bool ctrl = keyMods.HasFlag(KeyModifiers.Control);
         bool shift = keyMods.HasFlag(KeyModifiers.Shift);
+        if (e.ClickCount >= 2 && (session.IsInspectorActive || ctrl))
+        {
+            session.NavigateToCode();
+        }
 
         session.OnPointerInput(PointerActionType.Down, pt, btn, default, alt, ctrl, shift);
     }
@@ -226,6 +231,12 @@ public partial class MainWindow : Window
         bool shift = keyMods.HasFlag(KeyModifiers.Shift);
 
         session.OnPointerInput(PointerActionType.Move, pt, btn, default, alt, ctrl, shift);
+    }
+
+    private void OnPreviewPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
+        session.ClearHover();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

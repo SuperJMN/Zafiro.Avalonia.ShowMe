@@ -437,13 +437,15 @@ public sealed class ShowMeHostService
                 ? new Rect(0, 0, control.Bounds.Width, control.Bounds.Height).TransformToAABB(transform.Value)
                 : control.Bounds;
 
-            var ancestors = control.GetVisualAncestors()
-                .OfType<Control>()
-                .Take(8)
-                .Select(c => c.GetType().Name + (string.IsNullOrEmpty(c.Name) ? "" : $" #{c.Name}"))
-                .ToList();
+            var ancestors = hit.IsHover
+                ? null
+                : control.GetVisualAncestors()
+                    .OfType<Control>()
+                    .Take(8)
+                    .Select(c => c.GetType().Name + (string.IsNullOrEmpty(c.Name) ? "" : $" #{c.Name}"))
+                    .ToList();
 
-            var props = ExtractProperties(control);
+            var props = hit.IsHover ? null : ExtractProperties(control);
 
             var response = new HitTestResponseMessage(
                 RequestId: hit.RequestId,
@@ -459,7 +461,8 @@ public sealed class ShowMeHostService
                 BoundsHeight: rect.Height,
                 Classes: control.Classes.ToList(),
                 AncestorTree: ancestors,
-                Properties: props
+                Properties: props,
+                IsHover: hit.IsHover
             );
 
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
@@ -477,7 +480,7 @@ public sealed class ShowMeHostService
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                await ShowMeFraming.WriteControlMessageAsync(stream, new HitTestResponseMessage(hit.RequestId, false), ct).ConfigureAwait(false);
+                await ShowMeFraming.WriteControlMessageAsync(stream, new HitTestResponseMessage(hit.RequestId, false, IsHover: hit.IsHover), ct).ConfigureAwait(false);
             }
             finally
             {

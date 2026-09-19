@@ -39,6 +39,8 @@ public enum KeyActionType
 [JsonDerivedType(typeof(KeyInputMessage), "KeyInput")]
 [JsonDerivedType(typeof(HitTestRequestMessage), "HitTestRequest")]
 [JsonDerivedType(typeof(HitTestResponseMessage), "HitTestResponse")]
+[JsonDerivedType(typeof(ContextMenuHitTestRequestMessage), "ContextMenuHitTestRequest")]
+[JsonDerivedType(typeof(ContextMenuHitTestResponseMessage), "ContextMenuHitTestResponse")]
 [JsonDerivedType(typeof(XamlStatusMessage), "XamlStatus")]
 public abstract record ShowMeMessage;
 
@@ -107,6 +109,31 @@ public record HitTestResponseMessage(
     List<string>? AncestorTree = null,
     Dictionary<string, string>? Properties = null,
     bool IsHover = false
+) : ShowMeMessage;
+
+public record ContextMenuHitTestRequestMessage(
+    string RequestId,
+    double X,
+    double Y
+) : ShowMeMessage;
+
+public record VisualItemInfo(
+    string TypeName,
+    string? ElementName,
+    int LineNumber,
+    int LinePosition,
+    string? SourceUri,
+    double BoundsX = 0,
+    double BoundsY = 0,
+    double BoundsWidth = 0,
+    double BoundsHeight = 0
+);
+
+public record ContextMenuHitTestResponseMessage(
+    string RequestId,
+    double X,
+    double Y,
+    List<VisualItemInfo> Items
 ) : ShowMeMessage;
 
 public record XamlStatusMessage(

@@ -25,6 +25,7 @@ public sealed class PreviewServer : IDisposable
     public event Action<ShowMeFramePacket>? FrameReceived;
     public event Action<XamlStatusMessage>? XamlStatusReceived;
     public event Action<HitTestResponseMessage>? HitTestResultReceived;
+    public event Action<ContextMenuHitTestResponseMessage>? ContextMenuHitTestResultReceived;
     public event Action<string>? StatusChanged;
     public event Action<string>? ErrorOccurred;
     public event Action<string>? LogReceived;
@@ -172,6 +173,10 @@ public sealed class PreviewServer : IDisposable
                 {
                     HitTestResultReceived?.Invoke(hit);
                 }
+                else if (packet is ContextMenuHitTestResponseMessage ctxHit)
+                {
+                    ContextMenuHitTestResultReceived?.Invoke(ctxHit);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -246,6 +251,12 @@ public sealed class PreviewServer : IDisposable
     {
         var reqId = Guid.NewGuid().ToString();
         _ = SendMessageAsync(new HitTestRequestMessage(reqId, x, y, isHover), cts.Token);
+    }
+
+    public void RequestContextMenuHitTest(double x, double y)
+    {
+        var reqId = Guid.NewGuid().ToString();
+        _ = SendMessageAsync(new ContextMenuHitTestRequestMessage(reqId, x, y), cts.Token);
     }
 
     private async Task SendMessageAsync(ShowMeMessage msg, CancellationToken ct)

@@ -2,6 +2,8 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Zafiro.Avalonia.ShowMe.Protocol;
@@ -54,6 +56,11 @@ public partial class MainWindow : Window
         RightThumb?.BindSession(session);
         BottomThumb?.BindSession(session);
         CornerThumb?.BindSession(session);
+
+        session.RequestShowContextMenu += (point, items) =>
+        {
+            ShowInspectContextMenu(point, items, session);
+        };
 
         session.RequestZoomIn += () =>
         {
@@ -164,6 +171,11 @@ public partial class MainWindow : Window
 
         if (props.IsRightButtonPressed)
         {
+            if (session.IsInspectorActive || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                session.RequestInspectContextMenu(pt);
+                e.Handled = true;
+            }
             return;
         }
 
@@ -196,6 +208,10 @@ public partial class MainWindow : Window
 
         if (props.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
         {
+            if (session.IsInspectorActive || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                e.Handled = true;
+            }
             return;
         }
 
@@ -288,5 +304,89 @@ public partial class MainWindow : Window
         {
             session.OnKeyInput(KeyActionType.TextInput, 0, e.Text, false, false, false);
         }
+    }
+
+    private void ShowInspectContextMenu(Point point, IReadOnlyList<InspectMenuItemViewModel> items, PreviewSessionViewModel session)
+    {
+        if (items.Count == 0 || PreviewImage == null) return;
+
+        var menu = new ContextMenu();
+        foreach (var item in items)
+        {
+            var menuItem = new MenuItem
+            {
+                Header = CreateInspectMenuItemHeader(item),
+                Command = item.NavigateCommand
+            };
+
+            menuItem.PointerEntered += (_, _) =>
+            {
+                session.HoverElement(item);
+            };
+
+            menu.Items.Add(menuItem);
+        }
+
+        menu.Closed += (_, _) =>
+        {
+            session.ClearHover();
+        };
+
+        menu.Placement = PlacementMode.Bottom;
+        menu.PlacementRect = new Rect(point.X, point.Y, 1, 1);
+        menu.PlacementTarget = PreviewImage;
+        menu.Open(PreviewImage);
+    }
+
+    private static Control CreateInspectMenuItemHeader(InspectMenuItemViewModel item)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = item.TypeName,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        if (!string.IsNullOrWhiteSpace(item.ElementName))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"#{item.ElementName}",
+                Foreground = new SolidColorBrush(Color.Parse("#38BDF8")),
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.RelativeFilePath))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = item.RelativeFilePath,
+                Foreground = new SolidColorBrush(Color.Parse("#94A3B8")),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.LocationText))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = item.LocationText,
+                Foreground = new SolidColorBrush(Color.Parse("#64748B")),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        return panel;
     }
 }

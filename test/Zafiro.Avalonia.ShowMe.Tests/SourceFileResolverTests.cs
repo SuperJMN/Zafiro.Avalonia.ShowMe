@@ -128,4 +128,47 @@ public class SourceFileResolverTests : IDisposable
 
         Assert.Equal("/path/to/MainView.axaml", resolved);
     }
+
+    [Fact]
+    public void GetRelativePathIfRemote_When_Local_File_Returns_Null()
+    {
+        var localAxaml = Path.Combine(tempDir, "MyApp", "Views", "MainView.axaml");
+        var csproj = Path.Combine(tempDir, "MyApp", "MyApp.csproj");
+        var target = CreateDummyTarget(localAxaml, csproj);
+
+        var rel = SourceFileResolver.GetRelativePathIfRemote(localAxaml, target);
+
+        Assert.Null(rel);
+    }
+
+    [Fact]
+    public void GetRelativePathIfRemote_When_Nested_Control_In_Same_Project_Returns_Relative_Path()
+    {
+        var mainAxaml = Path.Combine(tempDir, "MyApp", "Views", "MainView.axaml");
+        var cardAxaml = Path.Combine(tempDir, "MyApp", "Views", "Cards", "StatusCard.axaml");
+        var csproj = Path.Combine(tempDir, "MyApp", "MyApp.csproj");
+        var target = CreateDummyTarget(mainAxaml, csproj);
+
+        var rel = SourceFileResolver.GetRelativePathIfRemote(cardAxaml, target);
+
+        Assert.Equal("Views/Cards/StatusCard.axaml", rel);
+    }
+
+    [Fact]
+    public void GetRelativePathIfRemote_When_Sibling_Project_In_Solution_Returns_Solution_Relative_Path()
+    {
+        var solutionDir = Path.Combine(tempDir, "Solution");
+        Directory.CreateDirectory(Path.Combine(solutionDir, "App"));
+        Directory.CreateDirectory(Path.Combine(solutionDir, "Common", "Controls"));
+        File.WriteAllText(Path.Combine(solutionDir, "Solution.sln"), "");
+
+        var mainAxaml = Path.Combine(solutionDir, "App", "MainView.axaml");
+        var appCsproj = Path.Combine(solutionDir, "App", "App.csproj");
+        var commonCard = Path.Combine(solutionDir, "Common", "Controls", "Card.axaml");
+        var target = CreateDummyTarget(mainAxaml, appCsproj);
+
+        var rel = SourceFileResolver.GetRelativePathIfRemote(commonCard, target);
+
+        Assert.Equal("Common/Controls/Card.axaml", rel);
+    }
 }

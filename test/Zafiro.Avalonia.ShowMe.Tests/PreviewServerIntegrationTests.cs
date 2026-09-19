@@ -244,4 +244,54 @@ public class PreviewServerIntegrationTests
         Assert.NotNull(hit);
         output.WriteLine($"[HitTest RunDetails] Found={hit.Found}, Type={hit.TypeName}, Element={hit.ElementName}, Line={hit.LineNumber}:{hit.LinePosition}, SourceUri={hit.SourceUri}");
     }
+
+    [Fact]
+    public async Task PreviewServer_ContextMenuHitTest_Returns_Hierarchy()
+    {
+        var runDetailsAxaml = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Pages/Production/CompletedRunDetails/CompletedRunDetailsView.axaml";
+        if (!File.Exists(runDetailsAxaml))
+        {
+            return;
+        }
+
+        var resolveResult = await PreviewTargetResolver.ResolveAsync(runDetailsAxaml);
+        Assert.True(resolveResult.IsSuccess, resolveResult.IsFailure ? resolveResult.Error : "");
+
+        var target = resolveResult.Value;
+        using var server = new PreviewServer(target, 1024, 1240);
+
+        var xamlStatusTcs = new TaskCompletionSource<XamlStatusMessage>();
+        server.XamlStatusReceived += x => xamlStatusTcs.TrySetResult(x);
+
+        var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+        server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+
+        var rawXaml = await File.ReadAllTextAsync(target.AxamlPath);
+        await server.StartAsync(rawXaml);
+
+        var completed = await Task.WhenAny(xamlStatusTcs.Task, Task.Delay(15000));
+        Assert.Same(xamlStatusTcs.Task, completed);
+        var status = await xamlStatusTcs.Task;
+        Assert.True(status.Success, status.Error);
+
+        await frameTcs.Task;
+
+        var ctxTcs = new TaskCompletionSource<ContextMenuHitTestResponseMessage>();
+        server.ContextMenuHitTestResultReceived += res => ctxTcs.TrySetResult(res);
+
+        server.RequestContextMenuHitTest(50, 50);
+        var ctxCompleted = await Task.WhenAny(ctxTcs.Task, Task.Delay(5000));
+        Assert.Same(ctxTcs.Task, ctxCompleted);
+
+        var ctx = await ctxTcs.Task;
+        Assert.NotNull(ctx);
+        Assert.NotEmpty(ctx.Items);
+
+        foreach (var item in ctx.Items)
+        {
+            output.WriteLine($"[ContextItem] Type={item.TypeName}, Name={item.ElementName}, Line={item.LineNumber}:{item.LinePosition}, SourceUri={item.SourceUri}");
+        }
+
+        Assert.True(ctx.Items[0].LineNumber > 0);
+    }
 }

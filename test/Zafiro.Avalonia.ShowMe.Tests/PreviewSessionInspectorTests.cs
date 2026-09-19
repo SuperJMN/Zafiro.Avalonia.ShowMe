@@ -165,4 +165,82 @@ public class PreviewSessionInspectorTests
         Assert.Null(session.HoveredElement);
         Assert.False(session.IsHoverAdornerVisible);
     }
+
+    [Fact]
+    public void InspectMenuItemViewModel_Formats_DisplayText_Correctly()
+    {
+        var localItem = new InspectMenuItemViewModel(
+            typeName: "TextBlock",
+            elementName: "MyText",
+            lineNumber: 15,
+            linePosition: 4,
+            sourceUri: null,
+            resolvedFilePath: "/path/to/MainView.axaml",
+            relativeFilePath: null, // local!
+            bounds: new Rect(0, 0, 50, 20),
+            onSelect: _ => { }
+        );
+
+        Assert.Equal("TextBlock #MyText [15:4]", localItem.DisplayText);
+        Assert.Equal("15:4", localItem.LocationText);
+        Assert.Equal("Abrir línea 15:4 en el editor", localItem.NavigationToolTip);
+
+        var remoteItem = new InspectMenuItemViewModel(
+            typeName: "WellStatusCardView",
+            elementName: null,
+            lineNumber: 81,
+            linePosition: 1,
+            sourceUri: "avares://App/Cards/Card.axaml",
+            resolvedFilePath: "/path/to/Cards/Card.axaml",
+            relativeFilePath: "Cards/Card.axaml", // remote!
+            bounds: new Rect(10, 10, 200, 100),
+            onSelect: _ => { }
+        );
+
+        Assert.Equal("WellStatusCardView (Cards/Card.axaml) [81:1]", remoteItem.DisplayText);
+        Assert.Equal("Cards/Card.axaml", remoteItem.RelativeFilePath);
+        Assert.Equal("Abrir Cards/Card.axaml:81 en el editor", remoteItem.NavigationToolTip);
+    }
+
+    [Fact]
+    public void ContextMenuHitTestResponse_Triggers_RequestShowContextMenu()
+    {
+        using var session = CreateSession();
+
+        Point? triggeredPoint = null;
+        IReadOnlyList<InspectMenuItemViewModel>? triggeredItems = null;
+
+        session.RequestShowContextMenu += (pt, items) =>
+        {
+            triggeredPoint = pt;
+            triggeredItems = items;
+        };
+
+        var response = new Zafiro.Avalonia.ShowMe.Protocol.ContextMenuHitTestResponseMessage(
+            RequestId: "test-req",
+            X: 120,
+            Y: 250,
+            Items:
+            [
+                new Zafiro.Avalonia.ShowMe.Protocol.VisualItemInfo("TextBlock", "Title", 10, 2, null, 120, 250, 80, 20),
+                new Zafiro.Avalonia.ShowMe.Protocol.VisualItemInfo("StackPanel", null, 8, 1, null, 100, 240, 200, 100)
+            ]
+        );
+
+        // Simulate receiving the message via reflection on private handler
+        var method = typeof(PreviewSessionViewModel).GetMethod(
+            "OnContextMenuHitTestResultReceived",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+        );
+        method?.Invoke(session, [response]);
+        global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(triggeredPoint);
+        Assert.Equal(120, triggeredPoint.Value.X);
+        Assert.Equal(250, triggeredPoint.Value.Y);
+        Assert.NotNull(triggeredItems);
+        Assert.Equal(2, triggeredItems.Count);
+        Assert.Equal("TextBlock", triggeredItems[0].TypeName);
+        Assert.Equal("StackPanel", triggeredItems[1].TypeName);
+    }
 }

@@ -47,6 +47,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public event Action? RequestZoomOut;
     public event Action? RequestResetZoom;
     public event Action? RequestFit;
+    public event Action<Point, IReadOnlyList<InspectMenuItemViewModel>>? RequestShowContextMenu;
 
     public PreviewTarget Target { get; }
 
@@ -281,6 +282,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         server.FrameReceived += OnFrameReceived;
         server.XamlStatusReceived += OnXamlStatusReceived;
         server.HitTestResultReceived += OnHitTestResultReceived;
+        server.ContextMenuHitTestResultReceived += OnContextMenuHitTestResultReceived;
         server.StatusChanged += s => Dispatcher.UIThread.Post(() => Status = s);
         server.ErrorOccurred += err => Dispatcher.UIThread.Post(() =>
         {
@@ -359,7 +361,11 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     {
         if (IsInspectorActive || ctrl)
         {
-            if (action == PointerActionType.Down)
+            if (button == PointerMouseButton.Right && action == PointerActionType.Down)
+            {
+                RequestInspectContextMenu(pt);
+            }
+            else if (action == PointerActionType.Down)
             {
                 server.RequestHitTest(pt.X, pt.Y, isHover: false);
             }
@@ -373,6 +379,11 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             ClearHover();
             server.SendPointerEvent(action, pt.X, pt.Y, button, delta.X, delta.Y, alt, ctrl, shift);
         }
+    }
+
+    public void RequestInspectContextMenu(Point pt)
+    {
+        server.RequestContextMenuHitTest(pt.X, pt.Y);
     }
 
     private void RequestHoverHitTest(Point pt)
@@ -412,12 +423,16 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     {
         if (SelectedElement == null || SelectedElement.LineNumber <= 0) return;
 
+        var line = SelectedElement.LineNumber;
+        var col = SelectedElement.LinePosition;
+        var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
+        NavigateToFile(file, line, col);
+    }
+
+    public void NavigateToFile(string file, int line, int col)
+    {
         try
         {
-            var line = SelectedElement.LineNumber;
-            var col = SelectedElement.LinePosition;
-            var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
-
             var psi = new ProcessStartInfo
             {
                 FileName = "code",
@@ -430,11 +445,45 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             try
             {
-                var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
                 Process.Start(new ProcessStartInfo("xdg-open", $"\"{file}\"") { UseShellExecute = true });
             }
             catch { }
         }
+    }
+
+    public void NavigateTo(InspectMenuItemViewModel item)
+    {
+        NavigateToFile(item.ResolvedFilePath, item.LineNumber, item.LinePosition);
+
+        SelectedElement = new ElementInspectionInfo(
+            TypeName: item.TypeName,
+            ElementName: item.ElementName,
+            LineNumber: item.LineNumber,
+            LinePosition: item.LinePosition,
+            SourceUri: item.SourceUri,
+            Bounds: item.Bounds,
+            Classes: [],
+            Ancestors: [],
+            Properties: new Dictionary<string, string>(),
+            ResolvedFilePath: item.ResolvedFilePath
+        );
+        SelectionBounds = item.Bounds;
+    }
+
+    public void HoverElement(InspectMenuItemViewModel item)
+    {
+        HoveredElement = new ElementInspectionInfo(
+            TypeName: item.TypeName,
+            ElementName: item.ElementName,
+            LineNumber: item.LineNumber,
+            LinePosition: item.LinePosition,
+            SourceUri: item.SourceUri,
+            Bounds: item.Bounds,
+            Classes: [],
+            Ancestors: [],
+            Properties: new Dictionary<string, string>(),
+            ResolvedFilePath: item.ResolvedFilePath
+        );
     }
 
     private void Reload()
@@ -592,6 +641,34 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         });
     }
 
+    private void OnContextMenuHitTestResultReceived(ContextMenuHitTestResponseMessage hit)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (hit.Items == null || hit.Items.Count == 0) return;
+
+            var menuItems = hit.Items.Select(item =>
+            {
+                var resolved = SourceFileResolver.Resolve(item.SourceUri, Target);
+                var relPath = SourceFileResolver.GetRelativePathIfRemote(resolved, Target);
+                var bounds = new Rect(item.BoundsX, item.BoundsY, item.BoundsWidth, item.BoundsHeight);
+                return new InspectMenuItemViewModel(
+                    typeName: item.TypeName,
+                    elementName: item.ElementName,
+                    lineNumber: item.LineNumber,
+                    linePosition: item.LinePosition,
+                    sourceUri: item.SourceUri,
+                    resolvedFilePath: resolved,
+                    relativeFilePath: relPath,
+                    bounds: bounds,
+                    onSelect: vm => NavigateTo(vm)
+                );
+            }).ToList();
+
+            RequestShowContextMenu?.Invoke(new Point(hit.X, hit.Y), menuItems);
+        });
+    }
+
     private void SetupFileWatcher()
     {
         try
@@ -635,7 +712,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             try
             {
                 using var stream = File.Create(filePath);
+#pragma warning disable CS0618
                 CurrentBitmap.Save(stream);
+#pragma warning restore CS0618
                 Status = $"Imagen guardada en: {Path.GetFileName(filePath)}";
             }
             catch (Exception ex)

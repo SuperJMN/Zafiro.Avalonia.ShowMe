@@ -8,9 +8,14 @@ public static class SourceFileResolver
 {
     public static string Resolve(string? sourceUri, PreviewTarget target)
     {
+        return TryResolve(sourceUri, target) ?? target.AxamlPath;
+    }
+
+    public static string? TryResolve(string? sourceUri, PreviewTarget target)
+    {
         if (string.IsNullOrWhiteSpace(sourceUri))
         {
-            return target.AxamlPath;
+            return null;
         }
 
         // Case 1: file:// URI
@@ -71,7 +76,50 @@ public static class SourceFileResolver
             }
         }
 
-        return target.AxamlPath;
+        return null;
+    }
+
+    public static string? GetRelativePathIfRemote(string resolvedPath, PreviewTarget target)
+    {
+        if (string.IsNullOrWhiteSpace(resolvedPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var fullResolved = Path.GetFullPath(resolvedPath);
+            var fullTarget = Path.GetFullPath(target.AxamlPath);
+
+            // If it is the local file currently being previewed, omit the relative path
+            if (string.Equals(fullResolved, fullTarget, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var projectDir = !string.IsNullOrEmpty(target.ContainingProjectPath)
+                ? Path.GetDirectoryName(target.ContainingProjectPath)
+                : null;
+
+            if (!string.IsNullOrEmpty(projectDir) && fullResolved.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                var rel = Path.GetRelativePath(projectDir, fullResolved);
+                return rel.Replace('\\', '/');
+            }
+
+            var repoRoot = FindRepositoryOrSolutionRoot(target);
+            if (!string.IsNullOrEmpty(repoRoot) && fullResolved.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                var rel = Path.GetRelativePath(repoRoot, fullResolved);
+                return rel.Replace('\\', '/');
+            }
+
+            return Path.GetFileName(fullResolved);
+        }
+        catch
+        {
+            return Path.GetFileName(resolvedPath);
+        }
     }
 
     private static string? ResolveAvaresUri(Uri avaresUri, PreviewTarget target)

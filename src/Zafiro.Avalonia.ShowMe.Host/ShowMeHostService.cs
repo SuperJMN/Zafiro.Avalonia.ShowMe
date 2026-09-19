@@ -225,6 +225,13 @@ public sealed class ShowMeHostService
                     await HandleHitTestAsync(hit, ct);
                 });
                 break;
+
+            case ContextMenuHitTestRequestMessage contextReq:
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await HandleContextMenuHitTestAsync(contextReq, ct);
+                });
+                break;
         }
     }
 
@@ -486,6 +493,128 @@ public sealed class ShowMeHostService
             {
                 sendLock.Release();
             }
+        }
+    }
+
+    private async Task HandleContextMenuHitTestAsync(ContextMenuHitTestRequestMessage req, CancellationToken ct)
+    {
+        if (window == null) return;
+
+        var pt = new Point(req.X, req.Y);
+        var candidates = new HashSet<Control>();
+
+        if (window.InputHitTest(pt) is Control inputControl)
+        {
+            foreach (var c in inputControl.GetSelfAndVisualAncestors().OfType<Control>())
+            {
+                if (c != window)
+                {
+                    candidates.Add(c);
+                }
+            }
+        }
+
+        foreach (var visual in window.GetVisualsAt(pt))
+        {
+            if (visual is Control control && control != window)
+            {
+                candidates.Add(control);
+                foreach (var ancestor in control.GetVisualAncestors().OfType<Control>())
+                {
+                    if (ancestor != window)
+                    {
+                        candidates.Add(ancestor);
+                    }
+                }
+            }
+        }
+
+        // Order candidates from deepest in the visual tree to least deep (leaf -> root)
+        var sorted = candidates
+            .OrderByDescending(c => c.GetVisualAncestors().Count())
+            .ToList();
+
+        var items = new List<VisualItemInfo>();
+        var seen = new HashSet<string>();
+
+        foreach (var c in sorted)
+        {
+            int line = 0;
+            int col = 0;
+            string? sourceUri = null;
+
+            var xamlInfo = XamlSourceInfo.GetXamlSourceInfo(c);
+            if (xamlInfo != null && xamlInfo.LineNumber > 0)
+            {
+                line = xamlInfo.LineNumber;
+                col = xamlInfo.LinePosition;
+                sourceUri = xamlInfo.SourceUri?.ToString();
+            }
+            else if (currentLineMapper != null && !string.IsNullOrEmpty(c.Name))
+            {
+                var mapped = currentLineMapper.FindByName(c.Name);
+                if (mapped != null)
+                {
+                    line = mapped.LineNumber;
+                    col = mapped.LinePosition;
+                }
+            }
+            else if (currentLineMapper != null)
+            {
+                var mapped = currentLineMapper.FindByTag(c.GetType().Name);
+                if (mapped != null)
+                {
+                    line = mapped.LineNumber;
+                    col = mapped.LinePosition;
+                }
+            }
+
+            // Exclude external framework theme internals (e.g. avares://Avalonia.Themes.Fluent/...)
+            if (sourceUri != null && sourceUri.StartsWith("avares://Avalonia.", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Calculate transformed bounds relative to the window
+            var transform = c.TransformToVisual(window);
+            var rect = transform.HasValue
+                ? new Rect(0, 0, c.Bounds.Width, c.Bounds.Height).TransformToAABB(transform.Value)
+                : c.Bounds;
+
+            // Deduplicate items that have identical type, name, file, and line/col
+            var key = $"{c.GetType().Name}|{c.Name}|{sourceUri}|{line}:{col}";
+            if (seen.Add(key))
+            {
+                items.Add(new VisualItemInfo(
+                    TypeName: c.GetType().Name,
+                    ElementName: c.Name,
+                    LineNumber: line,
+                    LinePosition: col,
+                    SourceUri: sourceUri,
+                    BoundsX: rect.X,
+                    BoundsY: rect.Y,
+                    BoundsWidth: rect.Width,
+                    BoundsHeight: rect.Height
+                ));
+            }
+        }
+
+        // If some items have resolved line numbers > 0, filter to only those that can be navigated to
+        if (items.Any(i => i.LineNumber > 0))
+        {
+            items = items.Where(i => i.LineNumber > 0).ToList();
+        }
+
+        var response = new ContextMenuHitTestResponseMessage(req.RequestId, req.X, req.Y, items);
+
+        await sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await ShowMeFraming.WriteControlMessageAsync(stream, response, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            sendLock.Release();
         }
     }
 

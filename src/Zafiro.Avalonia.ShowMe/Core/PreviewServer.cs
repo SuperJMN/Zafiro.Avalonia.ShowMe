@@ -131,7 +131,8 @@ public sealed class PreviewServer : IDisposable
             Width: currentWidth,
             Height: currentHeight,
             Dpi: currentDpi,
-            XamlAssemblyPath: target.XamlAssemblyPath
+            XamlAssemblyPath: target.XamlAssemblyPath,
+            XamlFilePath: target.AxamlPath
         );
 
         await SendMessageAsync(init, linkedCts.Token).ConfigureAwait(false);
@@ -204,13 +205,13 @@ public sealed class PreviewServer : IDisposable
             currentTheme = theme;
         }
 
-        _ = SendMessageAsync(new UpdateXamlMessage(rawXaml, currentTheme), cts.Token);
+        _ = SendMessageAsync(new UpdateXamlMessage(rawXaml, currentTheme, target.AxamlPath), cts.Token);
     }
 
     public void UpdateTheme(string theme)
     {
         currentTheme = theme;
-        _ = SendMessageAsync(new UpdateXamlMessage(lastRawXaml, currentTheme), cts.Token);
+        _ = SendMessageAsync(new UpdateXamlMessage(lastRawXaml, currentTheme, target.AxamlPath), cts.Token);
     }
 
     public void SetViewportSize(double width, double height, double dpi = 96.0)

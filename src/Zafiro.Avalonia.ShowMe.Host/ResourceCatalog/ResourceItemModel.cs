@@ -10,6 +10,7 @@ public enum ResourceItemKind
     Style,
     Brush,
     Color,
+    Geometry,
     Template,
     Other
 }

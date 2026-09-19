@@ -126,7 +126,20 @@ public static class ResourceExtractor
         // 1. Direct entries
         foreach (var entry in dict)
         {
-            ProcessDictionaryEntry(entry.Key, entry.Value, group, targetAssembly, originPath);
+            object? val = entry.Value;
+            try
+            {
+                if (dict.TryGetResource(entry.Key, null, out var resolved) && resolved != null)
+                {
+                    val = resolved;
+                }
+            }
+            catch
+            {
+                // Ignorar error al resolver deferred content
+            }
+
+            ProcessDictionaryEntry(entry.Key, val, group, targetAssembly, originPath);
         }
 
         // 2. ThemeDictionaries (Dark, Light, Default)
@@ -245,6 +258,46 @@ public static class ResourceExtractor
                 RawValue = color,
                 PreviewControlFactory = () => PreviewControlFactory.CreatePreviewForColor(color, keyStr)
             });
+        }
+        else if (value is Geometry geom)
+        {
+            group.Items.Add(new ResourceItemModel
+            {
+                Kind = ResourceItemKind.Geometry,
+                Label = $"Geometry: {keyStr}",
+                KeyOrSelector = keyStr,
+                OriginPath = originPath,
+                RawValue = geom,
+                PreviewControlFactory = () => PreviewControlFactory.CreatePreviewForGeometry(geom, keyStr)
+            });
+        }
+        else if (value is string pathStr && (pathStr.TrimStart().StartsWith("M", StringComparison.OrdinalIgnoreCase) || pathStr.TrimStart().StartsWith("m", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                var parsedGeom = StreamGeometry.Parse(pathStr);
+                group.Items.Add(new ResourceItemModel
+                {
+                    Kind = ResourceItemKind.Geometry,
+                    Label = $"Geometry: {keyStr}",
+                    KeyOrSelector = keyStr,
+                    OriginPath = originPath,
+                    RawValue = parsedGeom,
+                    PreviewControlFactory = () => PreviewControlFactory.CreatePreviewForGeometry(parsedGeom, keyStr)
+                });
+            }
+            catch
+            {
+                group.Items.Add(new ResourceItemModel
+                {
+                    Kind = ResourceItemKind.Other,
+                    Label = $"Recurso: {keyStr}",
+                    KeyOrSelector = keyStr,
+                    OriginPath = originPath,
+                    RawValue = value,
+                    PreviewControlFactory = () => PreviewControlFactory.CreatePreviewForOther(value, keyStr)
+                });
+            }
         }
         else
         {

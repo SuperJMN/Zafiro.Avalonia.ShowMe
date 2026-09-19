@@ -234,7 +234,14 @@ public sealed class ResourceCatalogView : UserControl
             rootStack.Children.Add(CreateCategorySection("🎨", "Pinceles y Colores", brushes));
         }
 
-        // 4. Other Resources
+        // 4. Geometries & Icons
+        var geometries = filteredItems.Where(i => i.Kind == ResourceItemKind.Geometry).ToList();
+        if (geometries.Count > 0)
+        {
+            rootStack.Children.Add(CreateCategorySection("📐", "Geometrías e Iconos", geometries));
+        }
+
+        // 5. Other Resources
         var others = filteredItems.Where(i => i.Kind == ResourceItemKind.Other || i.Kind == ResourceItemKind.Template).ToList();
         if (others.Count > 0)
         {
@@ -319,7 +326,7 @@ public sealed class ResourceCatalogView : UserControl
     {
         var card = new Border
         {
-            Width = 280,
+            Width = 300,
             MinHeight = 130,
             Background = new SolidColorBrush(Color.Parse("#131C2E")),
             BorderBrush = new SolidColorBrush(Color.Parse("#202F49")),
@@ -405,6 +412,7 @@ public sealed class ResourceCatalogView : UserControl
             ResourceItemKind.ControlTheme => ("THEME", "#0EA5E9", "#FFFFFF"),
             ResourceItemKind.Brush => ("BRUSH", "#10B981", "#FFFFFF"),
             ResourceItemKind.Color => ("COLOR", "#F59E0B", "#000000"),
+            ResourceItemKind.Geometry => ("GEOMETRY", "#0284C7", "#FFFFFF"),
             _ => ("RESOURCE", "#64748B", "#FFFFFF")
         };
 

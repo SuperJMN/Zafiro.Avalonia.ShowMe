@@ -53,12 +53,14 @@ public record InitMessage(
     double Width,
     double Height,
     double Dpi = 96.0,
-    string? XamlAssemblyPath = null
+    string? XamlAssemblyPath = null,
+    string? XamlFilePath = null
 ) : ShowMeMessage;
 
 public record UpdateXamlMessage(
     string Xaml,
-    string? Theme = null
+    string? Theme = null,
+    string? XamlFilePath = null
 ) : ShowMeMessage;
 
 public record ResizeViewportMessage(
@@ -151,6 +153,7 @@ public enum CatalogItemKindDto
     Style,
     Brush,
     Color,
+    Geometry,
     Template,
     Other
 }

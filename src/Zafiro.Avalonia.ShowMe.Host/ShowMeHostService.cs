@@ -31,6 +31,7 @@ public sealed class ShowMeHostService
     private long lastMoveFrameTime = System.Diagnostics.Stopwatch.GetTimestamp();
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private ResourceCatalogView? currentCatalogView;
+    private string? currentXamlFilePath;
 
     public ShowMeHostService(TcpClient client)
     {
@@ -125,6 +126,8 @@ public sealed class ShowMeHostService
                         }
                     }
 
+                    currentXamlFilePath = init.XamlFilePath;
+                    TryLoadSiblingResourceDictionaries(currentXamlFilePath, targetAssembly);
                     LoadXaml(init.InitialXaml, init.Theme);
                 });
                 break;
@@ -132,6 +135,11 @@ public sealed class ShowMeHostService
             case UpdateXamlMessage update:
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
+                    if (!string.IsNullOrEmpty(update.XamlFilePath))
+                    {
+                        currentXamlFilePath = update.XamlFilePath;
+                    }
+                    TryLoadSiblingResourceDictionaries(currentXamlFilePath, targetAssembly);
                     LoadXaml(update.Xaml, update.Theme);
                 });
                 break;
@@ -740,6 +748,7 @@ public sealed class ShowMeHostService
             ResourceItemKind.Brush => CatalogItemKindDto.Brush,
             ResourceItemKind.Color => CatalogItemKindDto.Color,
             ResourceItemKind.Template => CatalogItemKindDto.Template,
+            ResourceItemKind.Geometry => CatalogItemKindDto.Geometry,
             _ => CatalogItemKindDto.Other
         };
 
@@ -752,6 +761,17 @@ public sealed class ShowMeHostService
         {
             var col = scb.Color;
             summary = $"#{col.A:X2}{col.R:X2}{col.G:X2}{col.B:X2}";
+        }
+        else if (item.RawValue is IGradientBrush gb)
+        {
+            var count = gb.GradientStops.Count;
+            var kindName = gb is ILinearGradientBrush ? "Linear" : gb is IRadialGradientBrush ? "Radial" : "Gradient";
+            summary = $"{kindName} ({count} stops)";
+        }
+        else if (item.RawValue is Geometry geo)
+        {
+            var bounds = geo.Bounds;
+            summary = $"{bounds.Width:0.#} × {bounds.Height:0.#} px";
         }
 
         return new CatalogItemDto(
@@ -942,6 +962,78 @@ public sealed class ShowMeHostService
         catch (Exception ex)
         {
             Console.WriteLine($"[Host] No se pudieron importar estilos completos del target: {ex.Message}");
+        }
+    }
+
+    private static readonly HashSet<string> loadedSiblingFiles = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void TryLoadSiblingResourceDictionaries(string? xamlFilePath, Assembly? targetAssembly)
+    {
+        if (string.IsNullOrEmpty(xamlFilePath) || !File.Exists(xamlFilePath)) return;
+        if (Application.Current?.Resources is not ResourceDictionary hostDict) return;
+
+        try
+        {
+            var dir = Path.GetDirectoryName(xamlFilePath);
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+
+            var priorityFiles = new[]
+            {
+                "Colors.axaml",
+                "Typography.axaml",
+                "BorderRadius.axaml",
+                "Spacing.axaml",
+                "Shadow.axaml",
+                "Effects.axaml",
+                "DesignTokensIndex.axaml"
+            };
+
+            var filesToLoad = new List<string>();
+            foreach (var name in priorityFiles)
+            {
+                var candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate) && !string.Equals(candidate, xamlFilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    filesToLoad.Add(candidate);
+                }
+            }
+
+            var parentDir = Path.GetDirectoryName(dir);
+            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+            {
+                foreach (var name in priorityFiles)
+                {
+                    var candidate = Path.Combine(parentDir, name);
+                    if (File.Exists(candidate) && !string.Equals(candidate, xamlFilePath, StringComparison.OrdinalIgnoreCase) && !filesToLoad.Contains(candidate))
+                    {
+                        filesToLoad.Add(candidate);
+                    }
+                }
+            }
+
+            foreach (var file in filesToLoad)
+            {
+                if (!loadedSiblingFiles.Add(file)) continue;
+
+                try
+                {
+                    var content = File.ReadAllText(file);
+                    var loaded = AvaloniaRuntimeXamlLoader.Load(content, targetAssembly, null, null, true);
+                    if (loaded is IResourceDictionary dict)
+                    {
+                        hostDict.MergedDictionaries.Add(dict);
+                        Console.WriteLine($"[Host] Diccionario hermano cargado: {Path.GetFileName(file)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Host] Aviso al precargar diccionario hermano {Path.GetFileName(file)}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Host] Error en TryLoadSiblingResourceDictionaries: {ex.Message}");
         }
     }
 

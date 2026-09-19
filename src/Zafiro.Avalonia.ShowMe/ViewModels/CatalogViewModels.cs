@@ -40,6 +40,7 @@ public sealed class CatalogItemViewModel : ReactiveObject
             CatalogItemKindDto.Brush => "Brush",
             CatalogItemKindDto.Color => "Color",
             CatalogItemKindDto.Template => "Template",
+            CatalogItemKindDto.Geometry => "Geometría",
             _ => "Recurso"
         };
 
@@ -49,6 +50,7 @@ public sealed class CatalogItemViewModel : ReactiveObject
             CatalogItemKindDto.Style => "🪄",
             CatalogItemKindDto.Brush or CatalogItemKindDto.Color => "🎨",
             CatalogItemKindDto.Template => "📋",
+            CatalogItemKindDto.Geometry => "📐",
             _ => "📦"
         };
 
@@ -58,6 +60,7 @@ public sealed class CatalogItemViewModel : ReactiveObject
             CatalogItemKindDto.Style => "#8B5CF6",
             CatalogItemKindDto.Brush => "#10B981",
             CatalogItemKindDto.Color => "#F59E0B",
+            CatalogItemKindDto.Geometry => "#0284C7",
             _ => "#64748B"
         }));
 

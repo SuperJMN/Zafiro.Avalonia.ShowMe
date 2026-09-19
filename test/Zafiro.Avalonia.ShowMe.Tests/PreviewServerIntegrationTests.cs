@@ -460,6 +460,37 @@ public class PreviewServerIntegrationTests
     }
 
     [Fact]
+    public async Task PreviewServer_Renders_GradientsAxaml_As_Catalog()
+    {
+        var sampleAxaml = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Gradients.axaml";
+        if (!File.Exists(sampleAxaml)) return;
+
+        var resolveResult = await PreviewTargetResolver.ResolveAsync(sampleAxaml);
+        Assert.True(resolveResult.IsSuccess, resolveResult.IsFailure ? resolveResult.Error : "");
+
+        var target = resolveResult.Value;
+        using var server = new PreviewServer(target, 1200, 800);
+
+        var xamlStatusTcs = new TaskCompletionSource<XamlStatusMessage>();
+        server.XamlStatusReceived += x => xamlStatusTcs.TrySetResult(x);
+
+        var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+        server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+
+        var rawXaml = await File.ReadAllTextAsync(target.AxamlPath);
+        await server.StartAsync(rawXaml);
+
+        var completed = await Task.WhenAny(xamlStatusTcs.Task, Task.Delay(15000));
+        Assert.Same(xamlStatusTcs.Task, completed);
+        var status = await xamlStatusTcs.Task;
+        Assert.True(status.Success, status.Error);
+
+        var frame = await frameTcs.Task;
+        Assert.NotNull(frame);
+        SaveFrameAsPng(frame, "/home/jmn/.gemini/antigravity-cli/brain/ad211c12-a9ed-4188-985c-58cd6efe2549/gradients_catalog.png");
+    }
+
+    [Fact]
     public async Task PreviewServer_Renders_DialogStylesAxaml_With_DesignPreviewWith()
     {
         var sampleAxaml = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/Controls/Dialogs/Styles.axaml";
@@ -490,6 +521,57 @@ public class PreviewServerIntegrationTests
         Assert.True(frame.Width > 0);
         Assert.True(frame.Height > 0);
 
-        SaveFrameAsPng(frame, "/home/jmn/.gemini/antigravity-cli/brain/ad211c12-a9ed-4188-985c-58cd6efe2549/dialogs_styles_preview.png");
+    }
+
+    [Fact]
+    public async Task PreviewServer_Renders_Geometries_As_Catalog()
+    {
+        var targetDir = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens";
+        if (!Directory.Exists(targetDir)) return;
+
+        var tempAxaml = Path.Combine(targetDir, "IconsTest.axaml");
+        var xamlContent = """
+        <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+            <StreamGeometry x:Key="IconCheck">M 9 16.17 L 4.83 12 L 3.41 13.41 L 9 19 L 21 7 L 19.59 5.59 L 9 16.17 Z</StreamGeometry>
+            <StreamGeometry x:Key="IconClose">M 19 6.41 L 17.59 5 L 12 10.59 L 6.41 5 L 5 6.41 L 10.59 12 L 5 17.59 L 6.41 19 L 12 13.41 L 17.59 19 L 19 17.59 L 13.41 12 Z</StreamGeometry>
+            <StreamGeometry x:Key="IconSearch">M 15.5 14 h -0.79 l -0.28 -0.27 C 15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3 S 3 5.91 3 9.5 5.91 16 9.5 16 c 1.61 0 3.09 -0.59 4.23 -1.57 l 0.27 0.28 v 0.79 l 5 4.99 L 20.49 19 l -4.99 -5 z m -6 0 C 7.01 14 5 11.99 5 9.5 S 7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14 z</StreamGeometry>
+            <StreamGeometry x:Key="IconSettings">M 19.14 12.94 c 0.04 -0.3 0.06 -0.61 0.06 -0.94 c 0 -0.32 -0.02 -0.64 -0.07 -0.94 l 2.03 -1.58 c 0.18 -0.14 0.23 -0.41 0.12 -0.61 l -1.92 -3.32 c -0.12 -0.22 -0.37 -0.29 -0.59 -0.22 l -2.39 0.96 c -0.5 -0.38 -1.03 -0.7 -1.62 -0.94 L 14.4 2.81 c -0.04 -0.24 -0.24 -0.41 -0.48 -0.41 h -3.84 c -0.24 0 -0.43 0.17 -0.47 0.41 L 9.25 5.35 C 8.66 5.59 8.12 5.92 7.63 6.29 L 5.24 5.33 c -0.22 -0.08 -0.47 0 -0.59 0.22 L 2.74 8.87 c -0.12 0.21 -0.08 0.47 0.12 0.61 l 2.03 1.58 c -0.05 0.3 -0.09 0.63 -0.09 0.94 s 0.02 0.64 0.07 0.94 l -2.03 1.58 c -0.18 0.14 -0.23 0.41 -0.12 0.61 l 1.92 3.32 c 0.12 0.22 0.37 0.29 0.59 0.22 l 2.39 -0.96 c 0.5 0.38 1.03 0.7 1.62 0.94 l 0.36 2.54 c 0.05 0.24 0.24 0.41 0.48 0.41 h 3.84 c 0.24 0 0.44 -0.17 0.47 -0.41 l 0.36 -2.54 c 0.59 -0.24 1.13 -0.56 1.62 -0.94 l 2.39 0.96 c 0.22 0.08 0.47 0 0.59 -0.22 l 1.92 -3.32 c 0.12 -0.22 0.07 -0.47 -0.12 -0.61 L 19.14 12.94 z M 12 15.6 c -1.98 0 -3.6 -1.62 -3.6 -3.6 s 1.62 -3.6 3.6 -3.6 s 3.6 1.62 3.6 3.6 s -1.62 3.6 -3.6 3.6 z</StreamGeometry>
+        </ResourceDictionary>
+        """;
+        try
+        {
+            await File.WriteAllTextAsync(tempAxaml, xamlContent);
+
+            var resolveResult = await PreviewTargetResolver.ResolveAsync(tempAxaml);
+            Assert.True(resolveResult.IsSuccess, resolveResult.IsFailure ? resolveResult.Error : "");
+
+            var target = resolveResult.Value;
+            using var server = new PreviewServer(target, 1200, 800);
+
+            var xamlStatusTcs = new TaskCompletionSource<XamlStatusMessage>();
+            server.XamlStatusReceived += x => xamlStatusTcs.TrySetResult(x);
+
+            var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+            server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+
+            await server.StartAsync(xamlContent);
+
+            var completed = await Task.WhenAny(xamlStatusTcs.Task, Task.Delay(15000));
+            Assert.Same(xamlStatusTcs.Task, completed);
+            var status = await xamlStatusTcs.Task;
+            Assert.True(status.Success, status.Error);
+
+            var frame = await frameTcs.Task;
+            Assert.NotNull(frame);
+            SaveFrameAsPng(frame, "/home/jmn/.gemini/antigravity-cli/brain/ad211c12-a9ed-4188-985c-58cd6efe2549/geometries_catalog.png");
+        }
+        finally
+        {
+            if (File.Exists(tempAxaml))
+            {
+                File.Delete(tempAxaml);
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Xunit;
@@ -9,6 +10,21 @@ namespace Zafiro.Avalonia.ShowMe.Tests;
 
 public class ResourceCatalogTests
 {
+    static ResourceCatalogTests()
+    {
+        EnsureAvalonia();
+    }
+
+    private static void EnsureAvalonia()
+    {
+        if (Application.Current != null) return;
+
+        AppBuilder.Configure<Zafiro.Avalonia.ShowMe.Host.App>()
+            .UseSkia()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+            .WithInterFont()
+            .SetupWithoutStarting();
+    }
     [Fact]
     public void Extractor_ShouldExtract_StylesWithSelectors()
     {
@@ -236,5 +252,99 @@ public class ResourceCatalogTests
 
         Assert.NotNull(catalog.RootGroup);
         Assert.True(catalog.AllFlatItems.Count > 10);
+    }
+
+    [Fact]
+    public void Proteus_GradientsAxaml_Extracts_AndBuildsCatalog()
+    {
+        var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Gradients.axaml";
+        if (!File.Exists(path)) return;
+
+        var xaml = File.ReadAllText(path);
+        var loaded = global::Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(xaml, null, null, null, true);
+        var catalog = ResourceCatalogBuilder.BuildCatalog(loaded, null, "Gradients.axaml");
+        Assert.NotNull(catalog);
+        Assert.IsType<ResourceCatalogView>(catalog);
+
+        var dict = Assert.IsAssignableFrom<IResourceDictionary>(loaded);
+        var colorsPath = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Colors.axaml";
+        if (File.Exists(colorsPath))
+        {
+            var colorsLoaded = global::Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(File.ReadAllText(colorsPath), null, null, null, true);
+            if (colorsLoaded is IResourceDictionary colorsDict)
+            {
+                dict.MergedDictionaries.Add(colorsDict);
+            }
+        }
+
+        foreach (var entry in dict)
+        {
+            dict.TryGetResource(entry.Key, null, out var tryRes);
+            var tryResType = tryRes?.GetType().FullName;
+            Assert.NotNull(tryRes);
+            Assert.IsAssignableFrom<IBrush>(tryRes);
+        }
+    }
+
+    [Fact]
+    public void Factory_ShouldGenerate_PreviewForStreamGeometry()
+    {
+        var geo = StreamGeometry.Parse("M 0 0 L 24 0 L 24 24 L 0 24 Z");
+        var control = PreviewControlFactory.CreatePreviewForGeometry(geo);
+
+        Assert.NotNull(control);
+        Assert.IsAssignableFrom<Control>(control);
+    }
+
+    [Fact]
+    public void Extractor_ShouldExtract_StreamGeometry()
+    {
+        var dict = new ResourceDictionary
+        {
+            ["CheckIcon"] = StreamGeometry.Parse("M 0 0 L 10 10 L 20 0"),
+            ["SvgPathString"] = "M 0 0 H 100 V 100 H 0 Z"
+        };
+
+        var group = ResourceExtractor.Extract(dict, null, "Icons.axaml");
+        var flat = ResourceExtractor.GetAllFlatItems(group);
+
+        Assert.Contains(flat, i => i.Kind == ResourceItemKind.Geometry && i.KeyOrSelector == "CheckIcon");
+        Assert.Contains(flat, i => i.Kind == ResourceItemKind.Geometry && i.KeyOrSelector == "SvgPathString");
+    }
+
+    [Fact]
+    public void Factory_ShouldGenerate_PreviewForGradientBrush()
+    {
+        var gradient = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Colors.Red, 0),
+                new GradientStop(Colors.Blue, 1)
+            }
+        };
+
+        var control = PreviewControlFactory.CreatePreviewForBrush(gradient, "MyGradient");
+        Assert.NotNull(control);
+        Assert.IsAssignableFrom<Control>(control);
+    }
+
+    [Fact]
+    public void Factory_ShouldGenerate_TypographyPreview_ForTextBlockAndRun()
+    {
+        var tbStyle = new Style(x => x.OfType<TextBlock>().Class("Heading1"));
+        tbStyle.Setters.Add(new Setter(TextBlock.FontSizeProperty, 32.0));
+        tbStyle.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeight.Bold));
+
+        var tbControl = PreviewControlFactory.CreatePreviewForStyle(tbStyle, null, null);
+        Assert.NotNull(tbControl);
+
+        var runStyle = new Style(x => x.OfType<global::Avalonia.Controls.Documents.Run>().Class("Emphasized"));
+        runStyle.Setters.Add(new Setter(global::Avalonia.Controls.Documents.Run.FontSizeProperty, 18.0));
+
+        var runControl = PreviewControlFactory.CreatePreviewForStyle(runStyle, null, null);
+        Assert.NotNull(runControl);
     }
 }

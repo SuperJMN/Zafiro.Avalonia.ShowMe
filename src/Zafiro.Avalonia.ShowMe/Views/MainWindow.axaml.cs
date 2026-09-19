@@ -29,6 +29,22 @@ public partial class MainWindow : Window
             PreviewImage.PointerExited += OnPreviewPointerExited;
         }
 
+        if (CatalogImage != null)
+        {
+            CatalogImage.PointerPressed += OnPreviewPointerPressed;
+            CatalogImage.PointerReleased += OnPreviewPointerReleased;
+            CatalogImage.PointerMoved += OnPreviewPointerMoved;
+            CatalogImage.PointerExited += OnPreviewPointerExited;
+        }
+
+        CatalogScrollViewer?.GetObservable(Visual.BoundsProperty).Subscribe(bounds =>
+        {
+            if (bounds.Width > 0 && DataContext is MainViewModel { CurrentSession: { IsCatalogViewVisible: true } session })
+            {
+                session.OnCatalogViewportWidthChanged(bounds.Width);
+            }
+        });
+
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -89,8 +105,20 @@ public partial class MainWindow : Window
         bool initialFitDone = false;
         session.PropertyChanged += (s, e) =>
         {
-            if (e.PropertyName == nameof(PreviewSessionViewModel.CurrentBitmap) && !initialFitDone && session.CurrentBitmap != null)
+            if (e.PropertyName == nameof(PreviewSessionViewModel.IsCatalogViewVisible))
             {
+                if (session.IsCatalogViewVisible && CatalogScrollViewer != null && CatalogScrollViewer.Bounds.Width > 0)
+                {
+                    session.OnCatalogViewportWidthChanged(CatalogScrollViewer.Bounds.Width);
+                }
+            }
+            else if (e.PropertyName == nameof(PreviewSessionViewModel.CurrentBitmap) && !initialFitDone && session.CurrentBitmap != null)
+            {
+                if (session.IsCatalogActive && !session.IsPreviewWithMode)
+                {
+                    return;
+                }
+
                 initialFitDone = true;
                 global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
@@ -163,9 +191,10 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
 
-        PreviewImage?.Focus();
+        var visualTarget = sender as Visual ?? PreviewImage;
+        (visualTarget as InputElement)?.Focus();
 
-        var currentPoint = e.GetCurrentPoint(PreviewImage);
+        var currentPoint = e.GetCurrentPoint(visualTarget);
         var pt = currentPoint.Position;
         var props = currentPoint.Properties;
 
@@ -202,7 +231,8 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
 
-        var currentPoint = e.GetCurrentPoint(PreviewImage);
+        var visualTarget = sender as Visual ?? PreviewImage;
+        var currentPoint = e.GetCurrentPoint(visualTarget);
         var pt = currentPoint.Position;
         var props = currentPoint.Properties;
 
@@ -234,7 +264,8 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
 
-        var currentPoint = e.GetCurrentPoint(PreviewImage);
+        var visualTarget = sender as Visual ?? PreviewImage;
+        var currentPoint = e.GetCurrentPoint(visualTarget);
         var pt = currentPoint.Position;
         var props = currentPoint.Properties;
 

@@ -225,6 +225,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             this.RaiseAndSetIfChanged(ref isCatalogActive, value);
             this.RaisePropertyChanged(nameof(IsSidebarVisible));
+            this.RaisePropertyChanged(nameof(IsCatalogViewVisible));
+            this.RaisePropertyChanged(nameof(IsControlPreviewVisible));
         }
     }
 
@@ -260,6 +262,32 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public bool IsFlatMode => SidebarMode == "Flat";
     public bool IsPreviewWithMode => SidebarMode == "PreviewWith";
 
+    public bool IsCatalogViewVisible => IsCatalogActive && !IsPreviewWithMode;
+    public bool IsControlPreviewVisible => !IsCatalogActive || IsPreviewWithMode;
+
+    public void OnCatalogViewportWidthChanged(double width)
+    {
+        if (!IsCatalogViewVisible) return;
+
+        var targetW = Math.Round(Math.Clamp(width - 24, 400, 4096));
+        if (Math.Abs(targetW - PreviewWidth) > 30)
+        {
+            dragDebounceCts?.Cancel();
+            dragDebounceCts = new CancellationTokenSource();
+            var token = dragDebounceCts.Token;
+            Task.Delay(150, token).ContinueWith(t =>
+            {
+                if (!t.IsCanceled)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        server.SetViewportSize(targetW, PreviewHeight);
+                    });
+                }
+            }, TaskScheduler.Default);
+        }
+    }
+
     public string SidebarMode
     {
         get => sidebarMode;
@@ -269,6 +297,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(IsTreeMode));
             this.RaisePropertyChanged(nameof(IsFlatMode));
             this.RaisePropertyChanged(nameof(IsPreviewWithMode));
+            this.RaisePropertyChanged(nameof(IsCatalogViewVisible));
+            this.RaisePropertyChanged(nameof(IsControlPreviewVisible));
             if (value == "PreviewWith")
             {
                 server.SelectCatalogItem(null, "PreviewWith");
@@ -654,7 +684,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 }
 
                 CurrentBitmap = bitmap;
-                if (!hasUserSetDimensions && !IsResizing)
+                if (IsCatalogActive || (!hasUserSetDimensions && !IsResizing))
                 {
                     PreviewWidth = frame.Width;
                     PreviewHeight = frame.Height;

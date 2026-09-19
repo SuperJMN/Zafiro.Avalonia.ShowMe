@@ -21,6 +21,7 @@ public sealed class ResourceCatalogView : UserControl
     public ResourceGroupModel RootGroup => rootGroup;
     public List<ResourceItemModel> AllFlatItems => allFlatItems;
     public Control? PreviewWithControl => previewWithControl;
+    public bool IsShowingPreviewWith { get; private set; }
 
     public ResourceCatalogView(ResourceGroupModel rootGroup, Control? previewWithControl = null)
     {
@@ -119,6 +120,8 @@ public sealed class ResourceCatalogView : UserControl
             return;
         }
 
+        IsShowingPreviewWith = true;
+
         var container = new Border
         {
             Padding = new Thickness(32),
@@ -127,18 +130,13 @@ public sealed class ResourceCatalogView : UserControl
             Child = previewWithControl
         };
 
-        var scroll = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = container
-        };
-
-        mainContentHost.Content = scroll;
+        mainContentHost.Content = container;
     }
 
     public void ShowSingleItem(ResourceItemModel item)
     {
+        IsShowingPreviewWith = false;
+
         var card = CreateResourceCard(item);
         card.Width = 480;
         card.MinHeight = 160;
@@ -154,18 +152,13 @@ public sealed class ResourceCatalogView : UserControl
             Child = card
         };
 
-        var scroll = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = outer
-        };
-
-        mainContentHost.Content = scroll;
+        mainContentHost.Content = outer;
     }
 
     public void ShowGroup(string groupTitle)
     {
+        IsShowingPreviewWith = false;
+
         var matchingItems = allFlatItems
             .Where(i => !string.IsNullOrEmpty(i.OriginPath) && i.OriginPath.Contains(groupTitle, StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -180,6 +173,8 @@ public sealed class ResourceCatalogView : UserControl
 
     public void ShowAllCards(string? query = null)
     {
+        IsShowingPreviewWith = false;
+
         if (query != null)
         {
             filterQuery = query.Trim().ToLowerInvariant();
@@ -199,18 +194,12 @@ public sealed class ResourceCatalogView : UserControl
                 : $"No se encontraron recursos que coincidan con '{filterQuery}'.");
         }
 
-        var scroll = new ScrollViewer
-        {
-            Padding = new Thickness(24, 20),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
         var rootStack = new StackPanel
         {
             Spacing = 28,
             MaxWidth = 1600,
-            HorizontalAlignment = HorizontalAlignment.Left
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(24, 20)
         };
 
         // 1. ControlThemes
@@ -248,31 +237,23 @@ public sealed class ResourceCatalogView : UserControl
             rootStack.Children.Add(CreateCategorySection("📦", "Otros Recursos", others));
         }
 
-        scroll.Content = rootStack;
-        return scroll;
+        return rootStack;
     }
 
     private Control BuildCardGridFromItems(List<ResourceItemModel> items, string title)
     {
         var filteredItems = FilterItems(items);
 
-        var scroll = new ScrollViewer
-        {
-            Padding = new Thickness(24, 20),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
         var rootStack = new StackPanel
         {
             Spacing = 20,
             MaxWidth = 1600,
-            HorizontalAlignment = HorizontalAlignment.Left
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(24, 20)
         };
 
         rootStack.Children.Add(CreateCategorySection("📁", title, filteredItems));
-        scroll.Content = rootStack;
-        return scroll;
+        return rootStack;
     }
 
     private Control CreateCategorySection(string icon, string title, List<ResourceItemModel> items)

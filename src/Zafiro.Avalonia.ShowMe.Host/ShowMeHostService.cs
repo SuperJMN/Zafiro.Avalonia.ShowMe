@@ -153,8 +153,15 @@ public sealed class ShowMeHostService
                     {
                         window.Width = currentWidth;
                         window.Height = currentHeight;
-                        window.InvalidateMeasure();
-                        window.UpdateLayout();
+                        if (currentCatalogView != null)
+                        {
+                            UpdateCatalogWindowSize();
+                        }
+                        else
+                        {
+                            window.InvalidateMeasure();
+                            window.UpdateLayout();
+                        }
                     }
                     RenderAndSendFrame();
                 });
@@ -248,6 +255,17 @@ public sealed class ShowMeHostService
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     currentCatalogView?.ShowSelection(sel.ItemId, sel.ViewMode, sel.FilterQuery);
+                    if (currentCatalogView?.IsShowingPreviewWith == true && window != null)
+                    {
+                        window.Width = currentWidth;
+                        window.Height = currentHeight;
+                        window.InvalidateMeasure();
+                        window.UpdateLayout();
+                    }
+                    else
+                    {
+                        UpdateCatalogWindowSize();
+                    }
                     RenderAndSendFrame();
                 });
                 break;
@@ -314,6 +332,7 @@ public sealed class ShowMeHostService
                 var catView = (ResourceCatalogView)ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, title);
                 currentCatalogView = catView;
                 window.Content = catView;
+                UpdateCatalogWindowSize();
                 SendCatalogInfo(catView, title);
             }
             else if (loaded != null)
@@ -324,6 +343,7 @@ public sealed class ShowMeHostService
                     var catView = (ResourceCatalogView)ResourceCatalogBuilder.BuildCatalog(loaded, targetAssembly, "Recursos");
                     currentCatalogView = catView;
                     window.Content = catView;
+                    UpdateCatalogWindowSize();
                     SendCatalogInfo(catView, "Recursos");
                 }
                 else
@@ -706,6 +726,30 @@ public sealed class ShowMeHostService
     private void SendStatus(bool success, string? error, int? line, int? col)
     {
         SendMessage(new XamlStatusMessage(success, error, line, col));
+    }
+
+    private void UpdateCatalogWindowSize()
+    {
+        if (window == null || currentCatalogView == null) return;
+        if (currentCatalogView.IsShowingPreviewWith) return;
+
+        try
+        {
+            currentCatalogView.Measure(new Size(currentWidth, double.PositiveInfinity));
+            var desiredHeight = currentCatalogView.DesiredSize.Height;
+            if (desiredHeight > 0)
+            {
+                var targetH = Math.Clamp(Math.Ceiling(desiredHeight) + 40, 200, 8192);
+                window.Height = targetH;
+                window.Width = currentWidth;
+            }
+            window.InvalidateMeasure();
+            window.UpdateLayout();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Host] Aviso al ajustar tamaño del catálogo: {ex.Message}");
+        }
     }
 
     private void SendCatalogInfo(ResourceCatalogView catView, string title)

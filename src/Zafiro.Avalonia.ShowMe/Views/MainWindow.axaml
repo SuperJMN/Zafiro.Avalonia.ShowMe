@@ -194,6 +194,7 @@
 
                     <!-- Modo Inspector Toggle -->
                     <ToggleButton Classes="toolbar"
+                                  IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
                                   IsChecked="{Binding CurrentSession.IsInspectorActive, Mode=TwoWay}"
                                   ToolTip.Tip="Modo Inspector: Pasa el puntero para resaltar controles con el Adorner, o haz clic para ver sus propiedades (o mantén Ctrl)">
                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -204,11 +205,12 @@
                     </ToggleButton>
                     
                     <!-- Controles de Zoom -->
-                    <Border Classes="toolbar-group">
+                    <Border Classes="toolbar-group"
+                            IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}">
                         <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button Classes="toolbar-group-btn icon"
-                                    Command="{Binding CurrentSession.ZoomOutCommand}"
-                                    ToolTip.Tip="Alejar (Zoom Out)">
+                                     Command="{Binding CurrentSession.ZoomOutCommand}"
+                                     ToolTip.Tip="Alejar (Zoom Out)">
                                 <TextBlock Text="−" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center" />
                             </Button>
                             
@@ -240,6 +242,7 @@
 
                     <!-- Control de Tamaño y Presets de resolución -->
                     <ComboBox Classes="toolbar"
+                              IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
                               ItemsSource="{Binding CurrentSession.Presets}"
                               SelectedItem="{Binding CurrentSession.SelectedPreset, Mode=TwoWay}"
                               PlaceholderText="Resolución..."
@@ -254,6 +257,7 @@
 
                     <!-- Botón Restablecer Tamaño a d:DesignWidth/Height -->
                     <Button Classes="toolbar icon"
+                            IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
                             Command="{Binding CurrentSession.ResetDimensionsCommand}"
                             ToolTip.Tip="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)">
                         <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
@@ -532,9 +536,24 @@
                 </StackPanel>
             </Border>
 
+            <!-- VISTA DE CATÁLOGO / GALERÍA (Nativa en la shell, con scrollbar nativa) -->
+            <ScrollViewer x:Name="CatalogScrollViewer"
+                          IsVisible="{Binding CurrentSession.IsCatalogViewVisible, FallbackValue=False}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Background="#0B0F19">
+                <Image x:Name="CatalogImage"
+                       Source="{Binding CurrentSession.CurrentBitmap}"
+                       Width="{Binding CurrentSession.PreviewWidth}"
+                       Height="{Binding CurrentSession.PreviewHeight}"
+                       Stretch="None"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Top" />
+            </ScrollViewer>
+
             <!-- CONTENEDOR PAN & ZOOM (Elemento central oficial) -->
             <paz:ZoomBorder x:Name="ZoomBorder"
-                            IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=False}"
                             PanButton="Right"
                             ZoomSpeed="1.2"
                             Stretch="None"
@@ -880,7 +899,7 @@
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource SystemAccentColor}"
-                               IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                               IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=False}" />
                 </StackPanel>
             </Grid>
         </Border>

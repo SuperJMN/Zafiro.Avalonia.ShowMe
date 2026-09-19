@@ -416,7 +416,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             var line = SelectedElement.LineNumber;
             var col = SelectedElement.LinePosition;
-            var file = Target.AxamlPath;
+            var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
 
             var psi = new ProcessStartInfo
             {
@@ -430,7 +430,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             try
             {
-                Process.Start(new ProcessStartInfo("xdg-open", $"\"{Target.AxamlPath}\"") { UseShellExecute = true });
+                var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
+                Process.Start(new ProcessStartInfo("xdg-open", $"\"{file}\"") { UseShellExecute = true });
             }
             catch { }
         }
@@ -535,12 +536,14 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 if (hit.Found)
                 {
                     var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
+                    var resolvedFile = SourceFileResolver.Resolve(hit.SourceUri, Target);
                     HoveredElement = new ElementInspectionInfo(
                         TypeName: hit.TypeName,
                         ElementName: hit.ElementName,
                         LineNumber: hit.LineNumber,
                         LinePosition: hit.LinePosition,
                         SourceUri: hit.SourceUri,
+                        ResolvedFilePath: resolvedFile,
                         Bounds: bounds,
                         Classes: hit.Classes ?? [],
                         Ancestors: hit.AncestorTree ?? [],
@@ -565,12 +568,14 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 if (hit.Found)
                 {
                     var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
+                    var resolvedFile = SourceFileResolver.Resolve(hit.SourceUri, Target);
                     SelectedElement = new ElementInspectionInfo(
                         TypeName: hit.TypeName,
                         ElementName: hit.ElementName,
                         LineNumber: hit.LineNumber,
                         LinePosition: hit.LinePosition,
                         SourceUri: hit.SourceUri,
+                        ResolvedFilePath: resolvedFile,
                         Bounds: bounds,
                         Classes: hit.Classes ?? [],
                         Ancestors: hit.AncestorTree ?? [],

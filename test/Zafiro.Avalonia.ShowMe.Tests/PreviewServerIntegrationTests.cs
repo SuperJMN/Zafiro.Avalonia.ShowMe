@@ -197,4 +197,51 @@ public class PreviewServerIntegrationTests
         Assert.True(hit.Properties.ContainsKey("FontSize"));
         Assert.Equal("48", hit.Properties["FontSize"]);
     }
+
+    [Fact]
+    public async Task PreviewServer_Loads_CompletedRunDetailsView_And_HitTests_Nested_Control()
+    {
+        var runDetailsAxaml = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Pages/Production/CompletedRunDetails/CompletedRunDetailsView.axaml";
+        if (!File.Exists(runDetailsAxaml))
+        {
+            return;
+        }
+
+        var resolveResult = await PreviewTargetResolver.ResolveAsync(runDetailsAxaml);
+        Assert.True(resolveResult.IsSuccess, resolveResult.IsFailure ? resolveResult.Error : "");
+
+        var target = resolveResult.Value;
+        using var server = new PreviewServer(target, 1024, 1240);
+
+        server.StatusChanged += s => output.WriteLine($"[Status] {s}");
+        server.ErrorOccurred += e => output.WriteLine($"[Error] {e}");
+        server.LogReceived += l => output.WriteLine(l);
+
+        var frameTcs = new TaskCompletionSource<ShowMeFramePacket>();
+        server.FrameReceived += frame => frameTcs.TrySetResult(frame);
+
+        var xamlStatusTcs = new TaskCompletionSource<XamlStatusMessage>();
+        server.XamlStatusReceived += x => xamlStatusTcs.TrySetResult(x);
+
+        var rawXaml = await File.ReadAllTextAsync(target.AxamlPath);
+        await server.StartAsync(rawXaml);
+
+        var completed = await Task.WhenAny(xamlStatusTcs.Task, Task.Delay(15000));
+        Assert.Same(xamlStatusTcs.Task, completed);
+        var status = await xamlStatusTcs.Task;
+        Assert.True(status.Success, status.Error);
+
+        await frameTcs.Task;
+
+        // Hit test at bottom where RunWarningContentView is located
+        var hitTcs = new TaskCompletionSource<HitTestResponseMessage>();
+        server.HitTestResultReceived += res => hitTcs.TrySetResult(res);
+
+        server.RequestHitTest(500, 300);
+        var hitCompleted = await Task.WhenAny(hitTcs.Task, Task.Delay(5000));
+        Assert.Same(hitTcs.Task, hitCompleted);
+        var hit = await hitTcs.Task;
+        Assert.NotNull(hit);
+        output.WriteLine($"[HitTest RunDetails] Found={hit.Found}, Type={hit.TypeName}, Element={hit.ElementName}, Line={hit.LineNumber}:{hit.LinePosition}, SourceUri={hit.SourceUri}");
+    }
 }

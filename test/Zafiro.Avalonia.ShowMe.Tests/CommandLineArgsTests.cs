@@ -14,6 +14,7 @@ public class CommandLineArgsTests
         Assert.Null(result.Theme);
         Assert.Null(result.Width);
         Assert.Null(result.Height);
+        Assert.Null(result.Editor);
         Assert.False(result.ShowHelp);
     }
 
@@ -43,7 +44,8 @@ public class CommandLineArgsTests
             "--theme", "Dark",
             "-w", "1280",
             "--height", "720",
-            "-p", "src/MyApp/MyApp.csproj"
+            "-p", "src/MyApp/MyApp.csproj",
+            "--editor", "rider --line {line} {file}"
         };
 
         var result = CommandLineArgs.Parse(args);
@@ -53,6 +55,7 @@ public class CommandLineArgsTests
         Assert.Equal(1280, result.Width);
         Assert.Equal(720, result.Height);
         Assert.Equal("src/MyApp/MyApp.csproj", result.ProjectPath);
+        Assert.Equal("rider --line {line} {file}", result.Editor);
         Assert.False(result.ShowHelp);
     }
 

@@ -80,9 +80,14 @@ zafiro-avalonia-showme ruta/al/archivo.axaml --theme Dark
 # Especificar resolución inicial del viewport
 zafiro-avalonia-showme ruta/al/archivo.axaml -w 1280 -h 800
 
+# Editor para "ir al código" ({file}, {line} y {column} se sustituyen)
+zafiro-avalonia-showme ruta/al/archivo.axaml --editor "rider --line {line} --column {column} {file}"
+
 # Ver ayuda de opciones
 zafiro-avalonia-showme --help
 ```
+
+Sin `--editor`, ShowMe usa `$VISUAL` o `$EDITOR` y conoce cómo saltar a la línea en VS Code, Cursor, Rider, Zed, Sublime Text, Vim/Neovim, Helix, nano, micro, Kakoune y Emacs. Los editores de terminal se abren dentro de `$TERMINAL` o, si no está definida, de `x-terminal-emulator`; si no hay ninguno, la barra de estado lo indica. Si no hay editor configurado, el archivo se abre con el manejador del sistema, y cualquier fallo aparece en la barra de estado.
 
 ---
 
@@ -93,6 +98,8 @@ Zafiro.Avalonia.ShowMe/
 ├── src/Zafiro.Avalonia.ShowMe/
 │   ├── Core/
 │   │   ├── CommandLineArgs.cs         # Parser de argumentos CLI
+│   │   ├── EditorCommand.cs           # Comando del editor para ir al código
+│   │   ├── ExecutableLocator.cs       # Búsqueda de ejecutables en PATH (y PATHEXT en Windows)
 │   │   ├── PreviewTarget.cs           # Metadatos del archivo, proyecto y binarios host
 │   │   ├── PreviewTargetResolver.cs   # Descubrimiento de proyecto host y propiedades MSBuild
 │   │   ├── PreviewServer.cs           # Host TCP BSON y proceso oficial Avalonia Previewer

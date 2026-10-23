@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 using CSharpFunctionalExtensions;
@@ -10,10 +11,13 @@ public sealed class PreviewTargetResolver
     public static async Task<Result<PreviewTarget>> ResolveAsync(
         string axamlPath,
         string? explicitProjectPath = null,
+        IProgress<LoadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
+            progress?.Report(new LoadProgress(LoadStep.FindingProject, "Buscando el proyecto", Path.GetFileName(axamlPath)));
+
             var fullAxamlPath = Path.GetFullPath(CommandLineArgs.NormalizeFilePath(axamlPath));
             if (!File.Exists(fullAxamlPath))
             {
@@ -45,6 +49,7 @@ public sealed class PreviewTargetResolver
             }
 
             // 3. Evaluar propiedades MSBuild
+            progress?.Report(new LoadProgress(LoadStep.EvaluatingMsBuild, "Evaluando MSBuild", Path.GetFileName(hostProjectPath)));
             var msbuildResult = await EvaluateMsBuildPropertiesAsync(hostProjectPath, cancellationToken);
             if (msbuildResult.IsFailure)
             {
@@ -60,7 +65,12 @@ public sealed class PreviewTargetResolver
             // 4. Si el binario no existe, compilar el proyecto
             if (!File.Exists(targetPath))
             {
-                var buildResult = await BuildProjectAsync(hostProjectPath, cancellationToken);
+                var buildTitle = $"Compilando {Path.GetFileNameWithoutExtension(hostProjectPath)}";
+                progress?.Report(new LoadProgress(LoadStep.Building, buildTitle));
+                var buildResult = await BuildProjectAsync(
+                    hostProjectPath,
+                    line => progress?.Report(new LoadProgress(LoadStep.Building, buildTitle, line)),
+                    cancellationToken);
                 if (buildResult.IsFailure)
                 {
                     return Result.Failure<PreviewTarget>(buildResult.Error);
@@ -342,7 +352,7 @@ public sealed class PreviewTargetResolver
         }
     }
 
-    private static async Task<Result> BuildProjectAsync(string projectPath, CancellationToken cancellationToken)
+    private static async Task<Result> BuildProjectAsync(string projectPath, Action<string> onOutputLine, CancellationToken cancellationToken)
     {
         var psi = new ProcessStartInfo
         {
@@ -367,7 +377,7 @@ public sealed class PreviewTargetResolver
             return Result.Failure("No se pudo iniciar el proceso de compilación.");
         }
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stdoutTask = ReadLinesAsync(process.StandardOutput, onOutputLine, cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
 
@@ -380,6 +390,21 @@ public sealed class PreviewTargetResolver
         }
 
         return Result.Success();
+    }
+
+    private static async Task<string> ReadLinesAsync(StreamReader reader, Action<string> onLine, CancellationToken cancellationToken)
+    {
+        var text = new StringBuilder();
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            text.AppendLine(line);
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                onLine(line.Trim());
+            }
+        }
+
+        return text.ToString();
     }
 
     private static string FindFallbackDesignerHostApp(string targetDir)

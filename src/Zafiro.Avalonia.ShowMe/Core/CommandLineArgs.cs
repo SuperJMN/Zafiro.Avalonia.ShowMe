@@ -6,6 +6,7 @@ public sealed record CommandLineArgs(
     string? Theme = null,
     int? Width = null,
     int? Height = null,
+    string? Editor = null,
     bool ShowHelp = false)
 {
     public static CommandLineArgs Parse(string[] args)
@@ -15,6 +16,7 @@ public sealed record CommandLineArgs(
         string? theme = null;
         int? width = null;
         int? height = null;
+        string? editor = null;
         bool showHelp = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -43,13 +45,17 @@ public sealed record CommandLineArgs(
             {
                 height = h;
             }
+            else if (arg is "--editor" or "-e" && i + 1 < args.Length)
+            {
+                editor = args[++i];
+            }
             else if (!arg.StartsWith('-') && filePath == null)
             {
                 filePath = NormalizeFilePath(arg);
             }
         }
 
-        return new CommandLineArgs(filePath, projectPath, theme, width, height, showHelp);
+        return new CommandLineArgs(filePath, projectPath, theme, width, height, editor, showHelp);
     }
 
     public static string NormalizeFilePath(string path)
@@ -95,12 +101,15 @@ public sealed record CommandLineArgs(
               -t, --theme <tema>      Tema inicial: 'Default', 'Light' o 'Dark'.
               -w, --width <pixels>    Ancho inicial del viewport en píxeles.
               -h, --height <pixels>   Alto inicial del viewport en píxeles.
+              -e, --editor <plantilla> Comando para abrir el código de un elemento. Admite {file}, {line} y {column}.
+                                      Sin esta opción se usan $VISUAL o $EDITOR y, si no hay, el manejador del sistema.
               -?, -h, --help          Muestra esta ayuda.
             
             Ejemplos:
               zafiro-avalonia-showme src/MyApp/Views/MainView.axaml
               zafiro-avalonia-showme src/MyApp/Views/DetailView.axaml --theme Dark
               zafiro-avalonia-showme MainWindow.axaml -w 1280 -h 720
+              zafiro-avalonia-showme MainView.axaml --editor "rider --line {line} {file}"
             """);
     }
 }

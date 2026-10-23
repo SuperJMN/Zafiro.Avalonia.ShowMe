@@ -23,7 +23,7 @@ public partial class App : Application
             var cliArgs = CommandLineArgs.Parse(desktop.Args ?? []);
 
             var storageService = new AvaloniaStorageService();
-            var mainViewModel = new MainViewModel(storageService, cliArgs.Theme ?? XamlThemeModifier.ThemeDefault);
+            var mainViewModel = new MainViewModel(storageService, cliArgs.Theme ?? XamlThemeModifier.ThemeDefault, cliArgs.Editor);
 
             var mainWindow = new MainWindow
             {

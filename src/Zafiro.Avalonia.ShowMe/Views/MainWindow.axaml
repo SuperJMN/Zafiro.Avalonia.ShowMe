@@ -214,6 +214,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button Classes="toolbar-group-btn icon"
                                      Command="{Binding CurrentSession.ZoomOutCommand}"
+                                     AutomationProperties.Name="Alejar (Zoom Out)"
                                      ToolTip.Tip="Alejar (Zoom Out)">
                                 <TextBlock Text="−" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center" />
                             </Button>
@@ -226,12 +227,14 @@
 
                             <Button Classes="toolbar-group-btn icon"
                                     Command="{Binding CurrentSession.ZoomInCommand}"
+                                    AutomationProperties.Name="Acercar (Zoom In)"
                                     ToolTip.Tip="Acercar (Zoom In)">
                                 <TextBlock Text="+" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center" />
                             </Button>
 
                             <Button Classes="toolbar-group-btn"
                                     Command="{Binding CurrentSession.ResetZoomCommand}"
+                                    AutomationProperties.Name="Zoom 100% (1:1)"
                                     ToolTip.Tip="Zoom 100% (1:1)">
                                 <TextBlock Text="1:1" FontSize="11" VerticalAlignment="Center" />
                             </Button>
@@ -263,6 +266,7 @@
                     <Button Classes="toolbar icon"
                             IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
                             Command="{Binding CurrentSession.ResetDimensionsCommand}"
+                            AutomationProperties.Name="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)"
                             ToolTip.Tip="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)">
                         <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
                                   Width="13" Height="13" />
@@ -289,6 +293,7 @@
                     <Button Classes="toolbar icon"
                             Command="{Binding CurrentSession.SaveImageCommand}"
                             IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            AutomationProperties.Name="Guardar imagen renderizada como archivo PNG / JPEG"
                             ToolTip.Tip="Guardar imagen renderizada como archivo PNG / JPEG">
                         <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
                                   Width="13" Height="13" />
@@ -298,6 +303,7 @@
                     <Button Classes="toolbar icon"
                             Command="{Binding CurrentSession.CopyImageCommand}"
                             IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            AutomationProperties.Name="Copiar imagen al portapapeles"
                             ToolTip.Tip="Copiar imagen al portapapeles">
                         <PathIcon Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
                                   Width="13" Height="13" />
@@ -307,6 +313,7 @@
                     <Button Classes="toolbar icon"
                             Command="{Binding CurrentSession.ReloadCommand}"
                             IsEnabled="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            AutomationProperties.Name="Recargar XAML manualmente"
                             ToolTip.Tip="Recargar XAML manualmente">
                         <PathIcon Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
                                   Width="13" Height="13" />
@@ -352,7 +359,9 @@
 
                             <Button Grid.Column="2" Classes="toolbar icon"
                                     Command="{Binding CurrentSession.ToggleSidebarCommand}"
-                                    Padding="4" ToolTip.Tip="Ocultar panel lateral">
+                                    Padding="4"
+                                    AutomationProperties.Name="Ocultar panel lateral"
+                                    ToolTip.Tip="Ocultar panel lateral">
                                 <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SystemBaseMediumColor}" />
                             </Button>
                         </Grid>
@@ -380,6 +389,7 @@
                                     <Button Classes="toolbar-group-btn"
                                             Classes.active="{Binding CurrentSession.IsTreeMode}"
                                             Command="{Binding CurrentSession.SetTreeModeCommand}"
+                                            AutomationProperties.Name="Vista jerárquica en árbol"
                                             ToolTip.Tip="Vista jerárquica en árbol">
                                         <TextBlock Text="⑂ Árbol" FontSize="11" />
                                     </Button>
@@ -387,6 +397,7 @@
                                     <Button Classes="toolbar-group-btn"
                                             Classes.active="{Binding CurrentSession.IsFlatMode}"
                                             Command="{Binding CurrentSession.SetFlatModeCommand}"
+                                            AutomationProperties.Name="Lista plana de recursos"
                                             ToolTip.Tip="Lista plana de recursos">
                                         <TextBlock Text="≡ Lista" FontSize="11" />
                                     </Button>
@@ -395,6 +406,7 @@
                                             IsVisible="{Binding CurrentSession.HasPreviewWith, FallbackValue=False}"
                                             Classes.active="{Binding CurrentSession.IsPreviewWithMode}"
                                             Command="{Binding CurrentSession.SelectPreviewWithCommand}"
+                                            AutomationProperties.Name="Mostrar control Design.PreviewWith"
                                             ToolTip.Tip="Mostrar control Design.PreviewWith">
                                         <TextBlock Text="🖼 Vista previa" FontSize="11" />
                                     </Button>
@@ -804,7 +816,9 @@
                             Background="Transparent"
                             Foreground="White"
                             Padding="8,4"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Cerrar mensaje de error"
+                            ToolTip.Tip="Cerrar mensaje de error">
                         <TextBlock Text="✕" FontSize="14" FontWeight="Bold" />
                     </Button>
                 </Grid>

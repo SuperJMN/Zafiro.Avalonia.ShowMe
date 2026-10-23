@@ -874,7 +874,7 @@
                     <Border Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock Text="Tamaño:" Foreground="{DynamicResource SystemBaseMediumColor}" FontSize="11" />
-                            <TextBlock Text="{Binding CurrentSession.SelectedElement.Bounds.Width, StringFormat='{}{0:0.#'}" FontSize="11" FontWeight="Medium" />
+                            <TextBlock Text="{Binding CurrentSession.SelectedElement.Bounds.Width, StringFormat='{}{0:0.#}'}" FontSize="11" FontWeight="Medium" />
                             <TextBlock Text="×" FontSize="11" Foreground="{DynamicResource SystemBaseMediumColor}" />
                             <TextBlock Text="{Binding CurrentSession.SelectedElement.Bounds.Height, StringFormat='{}{0:0.#} px'}" FontSize="11" FontWeight="Medium" />
                         </StackPanel>

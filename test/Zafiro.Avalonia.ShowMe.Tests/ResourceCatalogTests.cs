@@ -8,6 +8,8 @@ using Zafiro.Avalonia.ShowMe.Host.ResourceCatalog;
 
 namespace Zafiro.Avalonia.ShowMe.Tests;
 
+using Styles = global::Avalonia.Styling.Styles;
+
 public class ResourceCatalogTests
 {
     static ResourceCatalogTests()

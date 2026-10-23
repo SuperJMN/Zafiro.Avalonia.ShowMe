@@ -1,8 +1,8 @@
 using System;
 using System.IO;
-using System.Windows.Input;
 using Avalonia;
 using ReactiveUI;
+using Zafiro.UI.Commands;
 
 namespace Zafiro.Avalonia.ShowMe.ViewModels;
 
@@ -34,7 +34,7 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ? $"Abrir {RelativeFilePath}:{LineNumber} en el editor"
         : $"Abrir línea {LineNumber}:{LinePosition} en el editor";
 
-    public ICommand NavigateCommand { get; }
+    public IEnhancedCommand NavigateCommand { get; }
 
     public InspectMenuItemViewModel(
         string typeName,
@@ -55,6 +55,6 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ResolvedFilePath = resolvedFilePath;
         RelativeFilePath = relativeFilePath;
         Bounds = bounds;
-        NavigateCommand = ReactiveCommand.Create(() => onSelect(this));
+        NavigateCommand = EnhancedCommand.Create(() => onSelect(this));
     }
 }

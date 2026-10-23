@@ -1,4 +1,5 @@
 using Avalonia;
+using ReactiveUI.Avalonia;
 using Zafiro.Avalonia.Mcp.AppHost;
 using Zafiro.Avalonia.ShowMe.Core;
 
@@ -25,5 +26,6 @@ internal sealed class Program
             .UsePlatformDetect()
             .UseMcpDiagnostics()
             .WithInterFont()
-            .LogToTrace();
+            .LogToTrace()
+            .UseReactiveUI(_ => { });
 }

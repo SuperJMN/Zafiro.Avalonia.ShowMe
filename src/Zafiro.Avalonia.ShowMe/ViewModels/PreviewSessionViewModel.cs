@@ -9,6 +9,7 @@ using ReactiveUI;
 using Zafiro.Avalonia.ShowMe.Core;
 using Zafiro.Avalonia.ShowMe.Protocol;
 using Zafiro.Avalonia.ShowMe.Services;
+using Zafiro.UI.Commands;
 
 namespace Zafiro.Avalonia.ShowMe.ViewModels;
 
@@ -334,23 +335,23 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
-    public System.Windows.Input.ICommand ToggleSidebarCommand { get; }
-    public System.Windows.Input.ICommand SetTreeModeCommand { get; }
-    public System.Windows.Input.ICommand SetFlatModeCommand { get; }
-    public System.Windows.Input.ICommand SelectAllCardsCommand { get; }
-    public System.Windows.Input.ICommand SelectPreviewWithCommand { get; }
-    public System.Windows.Input.ICommand SaveImageCommand { get; }
-    public System.Windows.Input.ICommand CopyImageCommand { get; }
-    public System.Windows.Input.ICommand ReloadCommand { get; }
-    public System.Windows.Input.ICommand ZoomInCommand { get; }
-    public System.Windows.Input.ICommand ZoomOutCommand { get; }
-    public System.Windows.Input.ICommand ResetZoomCommand { get; }
-    public System.Windows.Input.ICommand FitCommand { get; }
-    public System.Windows.Input.ICommand ResetDimensionsCommand { get; }
-    public System.Windows.Input.ICommand ApplyPresetCommand { get; }
-    public System.Windows.Input.ICommand ToggleInspectorCommand { get; }
-    public System.Windows.Input.ICommand ClearSelectionCommand { get; }
-    public System.Windows.Input.ICommand NavigateToCodeCommand { get; }
+    public IEnhancedCommand ToggleSidebarCommand { get; }
+    public IEnhancedCommand SetTreeModeCommand { get; }
+    public IEnhancedCommand SetFlatModeCommand { get; }
+    public IEnhancedCommand SelectAllCardsCommand { get; }
+    public IEnhancedCommand SelectPreviewWithCommand { get; }
+    public IEnhancedCommand SaveImageCommand { get; }
+    public IEnhancedCommand CopyImageCommand { get; }
+    public IEnhancedCommand ReloadCommand { get; }
+    public IEnhancedCommand ZoomInCommand { get; }
+    public IEnhancedCommand ZoomOutCommand { get; }
+    public IEnhancedCommand ResetZoomCommand { get; }
+    public IEnhancedCommand FitCommand { get; }
+    public IEnhancedCommand ResetDimensionsCommand { get; }
+    public IEnhancedCommand ApplyPresetCommand { get; }
+    public IEnhancedCommand ToggleInspectorCommand { get; }
+    public IEnhancedCommand ClearSelectionCommand { get; }
+    public IEnhancedCommand NavigateToCodeCommand { get; }
 
     public PreviewSessionViewModel(
         PreviewTarget target,
@@ -386,16 +387,16 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             new("Móvil horizontal", 844, 390),
         };
 
-        SaveImageCommand = new AsyncDelegateCommand(SaveImageAsync);
-        CopyImageCommand = new AsyncDelegateCommand(CopyImageAsync);
-        ReloadCommand = new DelegateCommand(Reload);
+        SaveImageCommand = EnhancedCommand.Create(SaveImageAsync);
+        CopyImageCommand = EnhancedCommand.Create(CopyImageAsync);
+        ReloadCommand = EnhancedCommand.Create(Reload);
 
-        ZoomInCommand = new DelegateCommand(() => RequestZoomIn?.Invoke());
-        ZoomOutCommand = new DelegateCommand(() => RequestZoomOut?.Invoke());
-        ResetZoomCommand = new DelegateCommand(() => RequestResetZoom?.Invoke());
-        FitCommand = new DelegateCommand(() => RequestFit?.Invoke());
-        ResetDimensionsCommand = new DelegateCommand(ResetDimensions);
-        ApplyPresetCommand = new DelegateCommand<DimensionPreset>(p =>
+        ZoomInCommand = EnhancedCommand.Create(() => RequestZoomIn?.Invoke());
+        ZoomOutCommand = EnhancedCommand.Create(() => RequestZoomOut?.Invoke());
+        ResetZoomCommand = EnhancedCommand.Create(() => RequestResetZoom?.Invoke());
+        FitCommand = EnhancedCommand.Create(() => RequestFit?.Invoke());
+        ResetDimensionsCommand = EnhancedCommand.Create(ResetDimensions);
+        ApplyPresetCommand = EnhancedCommand.Create<DimensionPreset?>(p =>
         {
             if (p != null)
             {
@@ -403,27 +404,27 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             }
         });
 
-        ToggleInspectorCommand = new DelegateCommand(() => IsInspectorActive = !IsInspectorActive);
-        ToggleSidebarCommand = new DelegateCommand(() => IsSidebarVisible = !IsSidebarVisible);
-        SetTreeModeCommand = new DelegateCommand(() => SidebarMode = "Tree");
-        SetFlatModeCommand = new DelegateCommand(() => SidebarMode = "Flat");
-        SelectAllCardsCommand = new DelegateCommand(() =>
+        ToggleInspectorCommand = EnhancedCommand.Create(() => IsInspectorActive = !IsInspectorActive);
+        ToggleSidebarCommand = EnhancedCommand.Create(() => IsSidebarVisible = !IsSidebarVisible);
+        SetTreeModeCommand = EnhancedCommand.Create(() => SidebarMode = "Tree");
+        SetFlatModeCommand = EnhancedCommand.Create(() => SidebarMode = "Flat");
+        SelectAllCardsCommand = EnhancedCommand.Create(() =>
         {
             SelectedCatalogNode = null;
             server.SelectCatalogItem(null, "All", CatalogSearchText);
         });
-        SelectPreviewWithCommand = new DelegateCommand(() =>
+        SelectPreviewWithCommand = EnhancedCommand.Create(() =>
         {
             SelectedCatalogNode = null;
             SidebarMode = "PreviewWith";
             server.SelectCatalogItem(null, "PreviewWith");
         });
-        ClearSelectionCommand = new DelegateCommand(() =>
+        ClearSelectionCommand = EnhancedCommand.Create(() =>
         {
             SelectedElement = null;
             SelectionBounds = null;
         });
-        NavigateToCodeCommand = new DelegateCommand(NavigateToCode);
+        NavigateToCodeCommand = EnhancedCommand.Create(NavigateToCode);
 
         server.FrameReceived += OnFrameReceived;
         server.XamlStatusReceived += OnXamlStatusReceived;

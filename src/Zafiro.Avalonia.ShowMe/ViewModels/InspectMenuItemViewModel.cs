@@ -34,7 +34,7 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ? $"Abrir {RelativeFilePath}:{LineNumber} en el editor"
         : $"Abrir línea {LineNumber}:{LinePosition} en el editor";
 
-    public IEnhancedCommand NavigateCommand { get; }
+    public IEnhancedCommand SelectCommand { get; }
 
     public InspectMenuItemViewModel(
         string typeName,
@@ -55,6 +55,6 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ResolvedFilePath = resolvedFilePath;
         RelativeFilePath = relativeFilePath;
         Bounds = bounds;
-        NavigateCommand = EnhancedCommand.Create(() => onSelect(this));
+        SelectCommand = EnhancedCommand.Create(() => onSelect(this));
     }
 }

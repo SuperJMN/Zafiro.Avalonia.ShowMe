@@ -21,6 +21,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private readonly PreviewServer server;
     private readonly IStorageService storageService;
     private readonly Maybe<CodeEditor> codeEditor;
+    private readonly Func<string, Task>? openView;
     private readonly IDisposable codeEditorSubscription;
     private FileSystemWatcher? fileWatcher;
 
@@ -48,6 +49,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private XamlSourceViewModel? sourceView;
     private bool canOpenInEditor;
     private bool viewXamlOnNextSelection;
+    private bool canOpenDefiningView;
+    private ElementInspectionInfo? selectionToRestore;
+    private readonly BehaviorSubject<bool> definingViewAvailable = new(false);
     private readonly BehaviorSubject<bool> hasSelection = new(false);
     private readonly BehaviorSubject<bool> editorAvailable = new(false);
 
@@ -153,6 +157,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             this.RaiseAndSetIfChanged(ref selectedElement, value);
             this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
             hasSelection.OnNext(value != null);
+            CanOpenDefiningView = value != null && CanOpenView(SelectedFile(value));
         }
     }
 
@@ -191,6 +196,24 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             editorAvailable.OnNext(value);
         }
     }
+
+    /// <summary>
+    /// True when the selected element is defined in another file that ShowMe can preview, so "Abrir vista" is offered.
+    /// </summary>
+    public bool CanOpenDefiningView
+    {
+        get => canOpenDefiningView;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref canOpenDefiningView, value);
+            definingViewAvailable.OnNext(value);
+        }
+    }
+
+    /// <summary>
+    /// The size the user chose for this view, or null when it still uses the size of its design.
+    /// </summary>
+    public PixelSize? ChosenSize => hasUserSetDimensions ? new PixelSize((int)PreviewWidth, (int)PreviewHeight) : null;
 
     public Rect? SelectionBounds
     {
@@ -381,6 +404,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public IEnhancedCommand ToggleInspectorCommand { get; }
     public IEnhancedCommand ViewXamlCommand { get; }
     public IEnhancedCommand OpenInEditorCommand { get; }
+    public IEnhancedCommand OpenDefiningViewCommand { get; }
     public IEnhancedCommand CloseSourceViewCommand { get; }
 
     public PreviewSessionViewModel(
@@ -390,19 +414,26 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         string initialTheme = XamlThemeModifier.ThemeDefault,
         int? explicitWidth = null,
         int? explicitHeight = null,
-        CodeEditor? codeEditor = null)
+        CodeEditor? codeEditor = null,
+        Func<string, Task>? openView = null,
+        PixelSize? restoredSize = null)
     {
         Target = target;
         this.server = server;
         this.storageService = storageService;
         this.codeEditor = Maybe.From(codeEditor);
+        this.openView = openView;
         currentTheme = initialTheme;
 
-        previewWidth = explicitWidth ?? target.InitialWidth ?? 1024;
-        previewHeight = explicitHeight ?? target.InitialHeight ?? 768;
-        if (explicitWidth.HasValue || explicitHeight.HasValue)
+        // The size the user chose before navigating away wins over the one given on the command line, but only the
+        // latter, or the design, defines "Diseño original".
+        previewWidth = restoredSize?.Width ?? explicitWidth ?? target.InitialWidth ?? 1024;
+        previewHeight = restoredSize?.Height ?? explicitHeight ?? target.InitialHeight ?? 768;
+        if (restoredSize.HasValue || explicitWidth.HasValue || explicitHeight.HasValue)
         {
             hasUserSetDimensions = true;
+            // Before the server starts this only sets the size of the first render.
+            server.SetViewportSize(previewWidth, previewHeight);
         }
 
         var origW = explicitWidth ?? target.InitialWidth ?? 800;
@@ -447,6 +478,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         OpenInEditorCommand = EnhancedCommand.Create(
             OpenSelectedInEditor,
             hasSelection.CombineLatest(editorAvailable, (selected, available) => selected && available));
+        OpenDefiningViewCommand = EnhancedCommand.Create(OpenDefiningViewAsync, definingViewAvailable);
         CloseSourceViewCommand = EnhancedCommand.Create(() => SourceView = null);
         codeEditorSubscription = this.codeEditor.Match(
             editor =>
@@ -464,6 +496,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         server.XamlStatusReceived += OnXamlStatusReceived;
         server.HitTestResultReceived += OnHitTestResultReceived;
         server.ContextMenuHitTestResultReceived += OnContextMenuHitTestResultReceived;
+        server.FindElementResultReceived += OnFindElementResultReceived;
         server.CatalogInfoReceived += OnCatalogInfoReceived;
         server.StatusChanged += s => Dispatcher.UIThread.Post(() => Status = s);
         server.ErrorOccurred += err => Dispatcher.UIThread.Post(() =>
@@ -624,6 +657,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     public void ClearSelection()
     {
+        selectionToRestore = null;
         SelectedElement = null;
         SelectionBounds = null;
     }
@@ -679,9 +713,41 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private string SelectedFile(ElementInspectionInfo element) =>
         element.ResolvedFilePath ?? SourceFileResolver.Resolve(element.SourceUri, Target);
 
+    /// <summary>
+    /// Opens, in place of this one, the view that defines the selected element.
+    /// </summary>
+    public Task OpenDefiningViewAsync()
+    {
+        if (SelectedElement == null || !CanOpenDefiningView || openView == null) return Task.CompletedTask;
+
+        return openView(SelectedFile(SelectedElement));
+    }
+
+    private bool CanOpenView(string file) =>
+        openView != null &&
+        !string.Equals(Path.GetFullPath(file), Path.GetFullPath(Target.AxamlPath), StringComparison.Ordinal) &&
+        PreviewableView.CanPreview(file);
+
+    /// <summary>
+    /// Selects again, once the preview answers, the element that was selected when this view was left. The element is
+    /// looked up by its identity, so it is found wherever a new size or the scroll have moved it.
+    /// </summary>
+    public void RestoreSelection(ElementInspectionInfo element)
+    {
+        selectionToRestore = element;
+        server.RequestFindElement(
+            element.TypeName,
+            element.ElementName,
+            element.LineNumber,
+            element.LinePosition,
+            element.SourceUri,
+            element.TreePath);
+    }
+
     public void SelectElement(InspectMenuItemViewModel item)
     {
         IsInspectorActive = false;
+        selectionToRestore = null;
         SelectedElement = new ElementInspectionInfo(
             TypeName: item.TypeName,
             ElementName: item.ElementName,
@@ -692,7 +758,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             Classes: [],
             Ancestors: [],
             Properties: new Dictionary<string, string>(),
-            ResolvedFilePath: item.ResolvedFilePath
+            ResolvedFilePath: item.ResolvedFilePath,
+            TreePath: item.TreePath
         );
         SelectionBounds = item.Bounds;
     }
@@ -845,6 +912,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 {
                     var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
                     var resolvedFile = SourceFileResolver.Resolve(hit.SourceUri, Target);
+                    selectionToRestore = null;
                     SelectedElement = new ElementInspectionInfo(
                         TypeName: hit.TypeName,
                         ElementName: hit.ElementName,
@@ -855,7 +923,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                         Bounds: bounds,
                         Classes: hit.Classes ?? [],
                         Ancestors: hit.AncestorTree ?? [],
-                        Properties: hit.Properties ?? new Dictionary<string, string>()
+                        Properties: hit.Properties ?? new Dictionary<string, string>(),
+                        TreePath: hit.TreePath
                     );
                     SelectionBounds = bounds;
 
@@ -868,8 +937,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                 else
                 {
                     viewXamlOnNextSelection = false;
-                    SelectedElement = null;
-                    SelectionBounds = null;
+                    ClearSelection();
                 }
             }
         });
@@ -907,7 +975,15 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                             SelectElement(menuItem);
                             OpenInEditor(menuItem.ResolvedFilePath, menuItem.LineNumber, menuItem.LinePosition);
                         }
-                        : null
+                        : null,
+                    onOpenView: CanOpenView(resolved)
+                        ? menuItem =>
+                        {
+                            SelectElement(menuItem);
+                            return openView!(menuItem.ResolvedFilePath);
+                        }
+                        : null,
+                    treePath: item.TreePath
                 );
             }).ToList();
 
@@ -915,6 +991,22 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
 
         DispatchToUI(Handle);
+    }
+
+    private void OnFindElementResultReceived(FindElementResponseMessage found)
+    {
+        DispatchToUI(() =>
+        {
+            // Nothing to restore, or the user selected something else meanwhile.
+            if (selectionToRestore is not { } wanted) return;
+            selectionToRestore = null;
+
+            if (found.Item is not { } item) return;
+
+            var bounds = new Rect(item.BoundsX, item.BoundsY, item.BoundsWidth, item.BoundsHeight);
+            SelectedElement = wanted with { Bounds = bounds, TreePath = item.TreePath };
+            SelectionBounds = bounds;
+        });
     }
 
     private void SetupFileWatcher()

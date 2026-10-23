@@ -41,6 +41,8 @@ public enum KeyActionType
 [JsonDerivedType(typeof(HitTestResponseMessage), "HitTestResponse")]
 [JsonDerivedType(typeof(ContextMenuHitTestRequestMessage), "ContextMenuHitTestRequest")]
 [JsonDerivedType(typeof(ContextMenuHitTestResponseMessage), "ContextMenuHitTestResponse")]
+[JsonDerivedType(typeof(FindElementRequestMessage), "FindElementRequest")]
+[JsonDerivedType(typeof(FindElementResponseMessage), "FindElementResponse")]
 [JsonDerivedType(typeof(XamlStatusMessage), "XamlStatus")]
 [JsonDerivedType(typeof(CatalogInfoMessage), "CatalogInfo")]
 [JsonDerivedType(typeof(SelectCatalogItemMessage), "SelectCatalogItem")]
@@ -112,7 +114,8 @@ public record HitTestResponseMessage(
     List<string>? Classes = null,
     List<string>? AncestorTree = null,
     Dictionary<string, string>? Properties = null,
-    bool IsHover = false
+    bool IsHover = false,
+    string? TreePath = null
 ) : ShowMeMessage;
 
 public record ContextMenuHitTestRequestMessage(
@@ -130,7 +133,8 @@ public record VisualItemInfo(
     double BoundsX = 0,
     double BoundsY = 0,
     double BoundsWidth = 0,
-    double BoundsHeight = 0
+    double BoundsHeight = 0,
+    string? TreePath = null
 );
 
 public record ContextMenuHitTestResponseMessage(
@@ -138,6 +142,29 @@ public record ContextMenuHitTestResponseMessage(
     double X,
     double Y,
     List<VisualItemInfo> Items
+) : ShowMeMessage;
+
+/// <summary>
+/// Asks the preview for the element with this identity, wherever the layout has put it now. <see cref="TreePath"/>
+/// tells apart the instances of a template that share the same source location.
+/// </summary>
+public record FindElementRequestMessage(
+    string RequestId,
+    string TypeName,
+    string? ElementName,
+    int LineNumber,
+    int LinePosition,
+    string? SourceUri,
+    string? TreePath
+) : ShowMeMessage;
+
+/// <summary>
+/// The element found for a <see cref="FindElementRequestMessage"/>, already scrolled into view, or null when it is not
+/// in the preview.
+/// </summary>
+public record FindElementResponseMessage(
+    string RequestId,
+    VisualItemInfo? Item
 ) : ShowMeMessage;
 
 public record XamlStatusMessage(

@@ -125,8 +125,18 @@
                     <TextBlock Text="ShowMe" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <!-- Botón Abrir Archivo -->
+                <!-- Botones Atrás y Abrir Archivo -->
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Classes="toolbar"
+                            Command="{Binding GoBackCommand}"
+                            IsVisible="{Binding CanGoBack}"
+                            ToolTip.Tip="{Binding BackToolTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <PathIcon Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"
+                                      Width="13" Height="13" VerticalAlignment="Center" />
+                            <TextBlock Text="Atrás" VerticalAlignment="Center" FontSize="12" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="toolbar"
                             Command="{Binding OpenFileCommand}"
                             ToolTip.Tip="Abrir archivo AXAML / XAML (Ctrl+O)">
@@ -910,8 +920,11 @@
                     <Ellipse Width="8" Height="8"
                              Fill="{Binding CurrentSession.IsHotReloadActive, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=#2ECC71}" />
                     <TextBlock Text="{Binding CurrentSession.Status, FallbackValue='Listo'}"
+                               ToolTip.Tip="{Binding CurrentSession.Status, FallbackValue='Listo'}"
                                Foreground="{DynamicResource SystemBaseMediumColor}"
                                FontSize="12"
+                               MaxWidth="180"
+                               TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" />
                 </StackPanel>
 
@@ -956,6 +969,15 @@
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Data="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" Width="11" Height="11" VerticalAlignment="Center" />
                             <TextBlock Text="Ver XAML" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"
+                            Command="{Binding CurrentSession.OpenDefiningViewCommand}"
+                            IsVisible="{Binding CurrentSession.CanOpenDefiningView, FallbackValue=False}"
+                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.OpenViewToolTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" Width="11" Height="11" VerticalAlignment="Center" />
+                            <TextBlock Text="Abrir vista" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"

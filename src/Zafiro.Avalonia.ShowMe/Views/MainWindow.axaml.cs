@@ -18,6 +18,7 @@ namespace Zafiro.Avalonia.ShowMe.Views;
 public partial class MainWindow : Window
 {
     private static readonly KeyGesture ToggleInspectorGesture = new(Key.C, KeyModifiers.Control | KeyModifiers.Shift);
+    private static readonly KeyGesture GoBackGesture = new(Key.Left, KeyModifiers.Alt);
     private readonly SerialDisposable sessionSubscriptions = new();
 
     public MainWindow()
@@ -320,6 +321,14 @@ public partial class MainWindow : Window
     {
         base.OnKeyDown(e);
 
+        // CanExecute is false while a previous "Atrás" is still loading, like the button.
+        if (GoBackGesture.Matches(e) && DataContext is MainViewModel main && main.GoBackCommand.CanExecute(null))
+        {
+            main.GoBackCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
 
         if (e.Key == Key.Escape && session.HandleEscape())
@@ -384,6 +393,10 @@ public partial class MainWindow : Window
             };
 
             menuItem.Items.Add(new MenuItem { Header = "Ver XAML", Command = item.ViewXamlCommand });
+            if (item.CanOpenView)
+            {
+                menuItem.Items.Add(new MenuItem { Header = "Abrir vista", Command = item.OpenViewCommand });
+            }
             if (item.CanOpenInEditor)
             {
                 menuItem.Items.Add(new MenuItem { Header = "Abrir en el editor", Command = item.OpenInEditorCommand });

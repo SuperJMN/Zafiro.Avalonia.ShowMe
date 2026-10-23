@@ -46,6 +46,18 @@ dotnet tool install -g Zafiro.Avalonia.ShowMe
 dotnet tool update -g Zafiro.Avalonia.ShowMe
 ```
 
+### 💻 Plataformas soportadas
+
+ShowMe necesita el SDK de .NET 10 y un escritorio gráfico donde Avalonia pueda renderizar. El paquete incluye los binarios nativos de:
+
+| Sistema | Arquitecturas |
+|---|---|
+| Windows | x64, Arm64 |
+| macOS | x64, Apple Silicon |
+| Linux (glibc) | x64, Arm64 |
+
+La lista se define en `SupportedNativeRuntimeIdentifiers`, en `src/Zafiro.Avalonia.ShowMe/Zafiro.Avalonia.ShowMe.csproj`.
+
 ### 🖥️ Integración con el escritorio (Linux / GNOME / COSMIC / KDE)
 
 Para asociar archivos `.axaml` y `.xaml` y poder abrirlos directamente con doble clic o menú contextual del gestor de archivos con el icono de la aplicación:

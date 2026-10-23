@@ -12,6 +12,7 @@ namespace Zafiro.Avalonia.ShowMe.ViewModels;
 public sealed class MainViewModel : ReactiveObject
 {
     private readonly IStorageService storageService;
+    private readonly string? editorTemplate;
     private PreviewSessionViewModel? currentSession;
     private ThemeOption selectedTheme;
     private bool isLoading;
@@ -72,9 +73,10 @@ public sealed class MainViewModel : ReactiveObject
     public IEnhancedCommand OpenFileCommand { get; }
     public IEnhancedCommand DismissErrorCommand { get; }
 
-    public MainViewModel(IStorageService storageService, string initialTheme = XamlThemeModifier.ThemeDefault)
+    public MainViewModel(IStorageService storageService, string initialTheme = XamlThemeModifier.ThemeDefault, string? editorTemplate = null)
     {
         this.storageService = storageService;
+        this.editorTemplate = editorTemplate;
         selectedTheme = ThemeOptions.FirstOrDefault(t => string.Equals(t.Id, initialTheme, StringComparison.OrdinalIgnoreCase))
                         ?? ThemeOptions[0];
 
@@ -136,7 +138,8 @@ public sealed class MainViewModel : ReactiveObject
                     storageService,
                     SelectedTheme.Id,
                     explicitWidth,
-                    explicitHeight);
+                    explicitHeight,
+                    editorTemplate);
 
                 CurrentSession = session;
 

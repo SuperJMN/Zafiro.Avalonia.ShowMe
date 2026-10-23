@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using CSharpFunctionalExtensions;
 using ReactiveUI;
 using Zafiro.Avalonia.ShowMe.Core;
 using Zafiro.Avalonia.ShowMe.Protocol;
@@ -17,6 +18,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 {
     private readonly PreviewServer server;
     private readonly IStorageService storageService;
+    private readonly string? editorTemplate;
     private FileSystemWatcher? fileWatcher;
 
     private WriteableBitmap? currentBitmap;
@@ -359,11 +361,13 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         IStorageService storageService,
         string initialTheme = XamlThemeModifier.ThemeDefault,
         int? explicitWidth = null,
-        int? explicitHeight = null)
+        int? explicitHeight = null,
+        string? editorTemplate = null)
     {
         Target = target;
         this.server = server;
         this.storageService = storageService;
+        this.editorTemplate = editorTemplate;
         currentTheme = initialTheme;
 
         previewWidth = explicitWidth ?? target.InitialWidth ?? 1024;
@@ -579,23 +583,24 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     public void NavigateToFile(string file, int line, int col)
     {
+        var resolution = EditorCommand.Resolve(editorTemplate, Environment.GetEnvironmentVariable, ExecutableLocator.Find, file, line, col);
+        if (resolution.IsFailure)
+        {
+            Status = $"No se pudo abrir {Path.GetFileName(file)}: {resolution.Error}.";
+            return;
+        }
+
+        var editor = resolution.Value;
+        var editorName = editor.Match(e => Path.GetFileName(e.FileName), () => "el manejador del sistema");
+
         try
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "code",
-                Arguments = $"-g \"{file}:{line}:{col}\"",
-                UseShellExecute = true
-            };
-            Process.Start(psi);
+            Process.Start(editor.Match(e => e.ToStartInfo(), () => new ProcessStartInfo(file) { UseShellExecute = true }));
+            Status = $"Abriendo {Path.GetFileName(file)}:{line} con {editorName}.";
         }
-        catch
+        catch (Exception ex)
         {
-            try
-            {
-                Process.Start(new ProcessStartInfo("xdg-open", $"\"{file}\"") { UseShellExecute = true });
-            }
-            catch { }
+            Status = $"No se pudo abrir {Path.GetFileName(file)} con {editorName}: {ex.Message}";
         }
     }
 

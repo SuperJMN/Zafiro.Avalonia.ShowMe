@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Reactive.Disposables;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.PanAndZoom;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -13,6 +15,8 @@ namespace Zafiro.Avalonia.ShowMe.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly SerialDisposable sessionSubscriptions = new();
+
     public MainWindow()
     {
         InitializeComponent();
@@ -67,40 +71,54 @@ public partial class MainWindow : Window
 
     private void HookSession(PreviewSessionViewModel? session)
     {
-        if (session == null) return;
+        sessionSubscriptions.Disposable = null;
 
         RightThumb?.BindSession(session);
         BottomThumb?.BindSession(session);
         CornerThumb?.BindSession(session);
 
-        session.RequestShowContextMenu += (point, items) =>
+        if (session == null) return;
+
+        var subscriptions = new CompositeDisposable();
+
+        Action<Point, IReadOnlyList<InspectMenuItemViewModel>> showContextMenu = (point, items) =>
         {
             ShowInspectContextMenu(point, items, session);
         };
+        session.RequestShowContextMenu += showContextMenu;
+        subscriptions.Add(Disposable.Create(() => session.RequestShowContextMenu -= showContextMenu));
 
-        session.RequestZoomIn += () =>
+        Action zoomIn = () =>
         {
             ZoomBorder?.ZoomIn();
             UpdateZoomText(session);
         };
+        session.RequestZoomIn += zoomIn;
+        subscriptions.Add(Disposable.Create(() => session.RequestZoomIn -= zoomIn));
 
-        session.RequestZoomOut += () =>
+        Action zoomOut = () =>
         {
             ZoomBorder?.ZoomOut();
             UpdateZoomText(session);
         };
+        session.RequestZoomOut += zoomOut;
+        subscriptions.Add(Disposable.Create(() => session.RequestZoomOut -= zoomOut));
 
-        session.RequestResetZoom += () =>
+        Action resetZoom = () =>
         {
             ZoomBorder?.ResetMatrix();
             UpdateZoomText(session);
         };
+        session.RequestResetZoom += resetZoom;
+        subscriptions.Add(Disposable.Create(() => session.RequestResetZoom -= resetZoom));
 
-        session.RequestFit += () =>
+        Action fit = () =>
         {
             ZoomBorder?.AutoFit();
             UpdateZoomText(session);
         };
+        session.RequestFit += fit;
+        subscriptions.Add(Disposable.Create(() => session.RequestFit -= fit));
 
         bool initialFitDone = false;
         void FitOnFirstFrame()
@@ -123,7 +141,7 @@ public partial class MainWindow : Window
             }, DispatcherPriority.Loaded);
         }
 
-        session.PropertyChanged += (s, e) =>
+        PropertyChangedEventHandler sessionPropertyChanged = (s, e) =>
         {
             if (e.PropertyName == nameof(PreviewSessionViewModel.IsCatalogViewVisible))
             {
@@ -137,17 +155,23 @@ public partial class MainWindow : Window
                 FitOnFirstFrame();
             }
         };
+        session.PropertyChanged += sessionPropertyChanged;
+        subscriptions.Add(Disposable.Create(() => session.PropertyChanged -= sessionPropertyChanged));
 
         // La sesión se publica cuando el previewer ya ha respondido, así que su primer fotograma puede haber llegado antes.
         FitOnFirstFrame();
 
-        if (ZoomBorder != null)
+        if (ZoomBorder is { } zoomBorder)
         {
-            ZoomBorder.ZoomChanged += (_, _) =>
+            ZoomChangedEventHandler zoomChanged = (_, _) =>
             {
                 UpdateZoomText(session);
             };
+            zoomBorder.ZoomChanged += zoomChanged;
+            subscriptions.Add(Disposable.Create(() => zoomBorder.ZoomChanged -= zoomChanged));
         }
+
+        sessionSubscriptions.Disposable = subscriptions;
     }
 
     private void UpdateZoomText(PreviewSessionViewModel session)

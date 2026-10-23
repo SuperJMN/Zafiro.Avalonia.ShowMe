@@ -5,6 +5,7 @@
         xmlns:vm="using:Zafiro.Avalonia.ShowMe.ViewModels"
         xmlns:views="using:Zafiro.Avalonia.ShowMe.Views"
         xmlns:paz="using:Avalonia.Controls.PanAndZoom"
+        xmlns:panels="using:Zafiro.Avalonia.Controls.Panels"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="750"
         x:Class="Zafiro.Avalonia.ShowMe.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -113,10 +114,11 @@
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,0,0,1"
                 Padding="12,6">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                
+            <!-- Si no cabe en una fila, el panel de herramientas pasa a una segunda fila -->
+            <panels:FlexPanel Wrap="Wrap" AlignItems="Center" ColumnGap="12" RowGap="6">
+
                 <!-- Logo & Título -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <PathIcon Data="M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9Z"
                               Foreground="{DynamicResource SystemAccentColor}"
                               Width="18" Height="18" />
@@ -124,7 +126,7 @@
                 </StackPanel>
 
                 <!-- Botón Abrir Archivo -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Button Classes="toolbar"
                             Command="{Binding OpenFileCommand}"
                             ToolTip.Tip="Abrir archivo AXAML / XAML (Ctrl+O)">
@@ -156,29 +158,11 @@
                                        VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
-                    <!-- Indicador de elemento inspeccionado -->
-                    <Button Classes="toolbar"
-                            Command="{Binding CurrentSession.NavigateToCodeCommand}"
-                            IsVisible="{Binding CurrentSession.SelectedElement, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.NavigationToolTip}">
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <PathIcon Data="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
-                                      Width="12" Height="12" Foreground="{DynamicResource SystemAccentColor}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding CurrentSession.SelectedElement.DisplayTitle}"
-                                       FontWeight="SemiBold"
-                                       FontSize="11.5"
-                                       Foreground="{DynamicResource SystemAccentColor}"
-                                       VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding CurrentSession.SelectedElement.LocationText}"
-                                       FontSize="10.5"
-                                       Foreground="{DynamicResource SystemBaseMediumColor}"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
                 </StackPanel>
 
                 <!-- Panel derecho unificado de herramientas -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center"
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            panels:FlexPanel.MarginLeftAuto="True"
                             IsVisible="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}">
 
                     <!-- Botón Catálogo de Recursos Toggle (Visible cuando el archivo tiene recursos o estilos) -->
@@ -262,16 +246,6 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <!-- Botón Restablecer Tamaño a d:DesignWidth/Height -->
-                    <Button Classes="toolbar icon"
-                            IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
-                            Command="{Binding CurrentSession.ResetDimensionsCommand}"
-                            AutomationProperties.Name="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)"
-                            ToolTip.Tip="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)">
-                        <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
-                                  Width="13" Height="13" />
-                    </Button>
-
                     <!-- SELECTOR DE THEME -->
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <PathIcon Data="M12,18C11.11,18 10.26,17.8 9.5,17.45C11.56,16.5 13,14.42 13,12C13,9.58 11.56,7.5 9.5,6.55C10.26,6.2 11.11,6 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M20,8.69V4H15.31L12,0.69L8.69,4H4V8.69L0.69,12L4,15.31V20H8.69L12,23.31L15.31,20H20V15.31L23.31,12L20,8.69Z"
@@ -289,37 +263,54 @@
                         </ComboBox>
                     </StackPanel>
 
-                    <!-- Botón Guardar Imagen -->
+                    <!-- Menú de acciones secundarias: Restablecer tamaño, Guardar, Copiar y Recargar -->
                     <Button Classes="toolbar icon"
-                            Command="{Binding CurrentSession.SaveImageCommand}"
-                            IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            AutomationProperties.Name="Guardar imagen renderizada como archivo PNG / JPEG"
-                            ToolTip.Tip="Guardar imagen renderizada como archivo PNG / JPEG">
-                        <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
+                            AutomationProperties.Name="Más acciones"
+                            ToolTip.Tip="Más acciones">
+                        <PathIcon Data="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"
                                   Width="13" Height="13" />
-                    </Button>
-
-                    <!-- Botón Copiar Imagen -->
-                    <Button Classes="toolbar icon"
-                            Command="{Binding CurrentSession.CopyImageCommand}"
-                            IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            AutomationProperties.Name="Copiar imagen al portapapeles"
-                            ToolTip.Tip="Copiar imagen al portapapeles">
-                        <PathIcon Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
-                                  Width="13" Height="13" />
-                    </Button>
-
-                    <!-- Botón Recargar -->
-                    <Button Classes="toolbar icon"
-                            Command="{Binding CurrentSession.ReloadCommand}"
-                            IsEnabled="{Binding CurrentSession, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            AutomationProperties.Name="Recargar XAML manualmente"
-                            ToolTip.Tip="Recargar XAML manualmente">
-                        <PathIcon Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
-                                  Width="13" Height="13" />
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuItem Header="Restablecer tamaño original"
+                                          IsVisible="{Binding CurrentSession.IsControlPreviewVisible, FallbackValue=True}"
+                                          Command="{Binding CurrentSession.ResetDimensionsCommand}"
+                                          ToolTip.Tip="Restablecer al tamaño original (d:DesignWidth / d:DesignHeight)">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="M19,12H17.5C17.5,8.96 15.04,6.5 12,6.5C10.63,6.5 9.38,7 8.44,7.84L7,6.4C8.35,5.26 10.09,4.5 12,4.5C16.14,4.5 19.5,7.86 19.5,12H21L18.5,15.5L16,12H17.5C17.5,8.96 15.04,6.5 12,6.5M12,17.5C13.37,17.5 14.62,17 15.56,16.16L17,17.6C15.65,18.74 13.91,19.5 12,19.5C7.86,19.5 4.5,16.14 4.5,12H3L5.5,8.5L8,12H6.5C6.5,15.04 8.96,17.5 12,17.5Z"
+                                                  Width="13" Height="13" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Guardar imagen..."
+                                          Command="{Binding CurrentSession.SaveImageCommand}"
+                                          IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                          ToolTip.Tip="Guardar imagen renderizada como archivo PNG / JPEG">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"
+                                                  Width="13" Height="13" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Copiar imagen"
+                                          Command="{Binding CurrentSession.CopyImageCommand}"
+                                          IsEnabled="{Binding CurrentSession.CurrentBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                          ToolTip.Tip="Copiar imagen al portapapeles">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
+                                                  Width="13" Height="13" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Recargar XAML"
+                                          Command="{Binding CurrentSession.ReloadCommand}"
+                                          ToolTip.Tip="Recargar XAML manualmente">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                                  Width="13" Height="13" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
                     </Button>
                 </StackPanel>
-            </Grid>
+            </panels:FlexPanel>
         </Border>
 
         <!-- ================= ÁREA CENTRAL DE PREVISUALIZACIÓN ================= -->
@@ -897,13 +888,15 @@
                             <TextBlock Text="{Binding CurrentSession.SelectedElement.Bounds.Height, StringFormat='{}{0:0.#} px'}" FontSize="11" FontWeight="Medium" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2"
+                    <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"
+                            Command="{Binding CurrentSession.NavigateToCodeCommand}"
+                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.NavigationToolTip}"
                             IsVisible="{Binding CurrentSession.SelectedElement.LocationText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                         <TextBlock Text="{Binding CurrentSession.SelectedElement.LocationText}"
                                    Foreground="{DynamicResource SystemAccentColor}"
                                    FontWeight="SemiBold"
                                    FontSize="11" />
-                    </Border>
+                    </Button>
                 </StackPanel>
 
                 <!-- Información derecha: Resolución y Zoom -->

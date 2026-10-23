@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Xunit;
@@ -12,22 +12,7 @@ using Styles = global::Avalonia.Styling.Styles;
 
 public class ResourceCatalogTests
 {
-    static ResourceCatalogTests()
-    {
-        EnsureAvalonia();
-    }
-
-    private static void EnsureAvalonia()
-    {
-        if (Application.Current != null) return;
-
-        AppBuilder.Configure<Zafiro.Avalonia.ShowMe.Host.App>()
-            .UseSkia()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-            .WithInterFont()
-            .SetupWithoutStarting();
-    }
-    [Fact]
+    [AvaloniaFact]
     public void Extractor_ShouldExtract_StylesWithSelectors()
     {
         var styles = new Styles();
@@ -47,7 +32,7 @@ public class ResourceCatalogTests
         Assert.Contains(flat, i => i.Kind == ResourceItemKind.Style && i.KeyOrSelector.Contains("TextBox"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Extractor_ShouldExtract_ControlThemes()
     {
         var styles = new Styles();
@@ -60,7 +45,7 @@ public class ResourceCatalogTests
         Assert.Contains(flat, i => i.Kind == ResourceItemKind.ControlTheme);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Extractor_ShouldExtract_BrushesAndColors()
     {
         var dict = new ResourceDictionary
@@ -76,7 +61,7 @@ public class ResourceCatalogTests
         Assert.Contains(flat, i => i.Kind == ResourceItemKind.Color && i.KeyOrSelector == "AccentColor");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Extractor_ShouldExtract_ThemeDictionaries()
     {
         var dict = new ResourceDictionary();
@@ -99,7 +84,7 @@ public class ResourceCatalogTests
         Assert.Equal(2, flat.Count);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Factory_ShouldGenerate_PreviewForStyle()
     {
         var style = new Style(x => x.OfType<Button>().Class("Danger"));
@@ -108,7 +93,7 @@ public class ResourceCatalogTests
         Assert.NotNull(control);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Factory_ShouldGenerate_PreviewForControlTheme()
     {
         var theme = new ControlTheme(typeof(Button));
@@ -117,7 +102,7 @@ public class ResourceCatalogTests
         Assert.NotNull(control);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void XamlLoader_StylesWithPreviewWith_CanBeExtracted()
     {
         string xaml = """
@@ -151,7 +136,7 @@ public class ResourceCatalogTests
         Assert.IsType<Border>(preview);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void XamlLoader_ResourceDictionary_CanBeExtracted()
     {
         string xaml = """
@@ -186,7 +171,7 @@ public class ResourceCatalogTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Proteus_ColorsAxaml_Extracts_AllBrushesAndColors_AndBuildsCatalog()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Colors.axaml";
@@ -206,7 +191,7 @@ public class ResourceCatalogTests
         Assert.True(flat.Count > 10, $"Expected many colors and brushes, got {flat.Count}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Proteus_TypographyStylesAxaml_Extracts_Styles_AndBuildsCatalog()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/TypographyStyles.axaml";
@@ -226,7 +211,7 @@ public class ResourceCatalogTests
         Assert.True(flat.Count > 10, $"Expected many typography styles, got {flat.Count}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Proteus_BorderRadiusAxaml_Extracts_CornerRadii_AndBuildsCatalog()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/BorderRadius.axaml";
@@ -239,7 +224,7 @@ public class ResourceCatalogTests
         Assert.IsType<ResourceCatalogView>(catalog);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ResourceCatalogView_ShowSelection_DoesNotCrash()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Colors.axaml";
@@ -256,7 +241,7 @@ public class ResourceCatalogTests
         Assert.True(catalog.AllFlatItems.Count > 10);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Proteus_GradientsAxaml_Extracts_AndBuildsCatalog()
     {
         var path = "/home/jmn/Repos/proteus-ui/Proteus.Ui.Theme/DesignTokens/Gradients.axaml";
@@ -288,7 +273,7 @@ public class ResourceCatalogTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Factory_ShouldGenerate_PreviewForStreamGeometry()
     {
         var geo = StreamGeometry.Parse("M 0 0 L 24 0 L 24 24 L 0 24 Z");
@@ -298,7 +283,7 @@ public class ResourceCatalogTests
         Assert.IsAssignableFrom<Control>(control);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Extractor_ShouldExtract_StreamGeometry()
     {
         var dict = new ResourceDictionary
@@ -314,7 +299,7 @@ public class ResourceCatalogTests
         Assert.Contains(flat, i => i.Kind == ResourceItemKind.Geometry && i.KeyOrSelector == "SvgPathString");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Factory_ShouldGenerate_PreviewForGradientBrush()
     {
         var gradient = new LinearGradientBrush
@@ -333,7 +318,7 @@ public class ResourceCatalogTests
         Assert.IsAssignableFrom<Control>(control);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Factory_ShouldGenerate_TypographyPreview_ForTextBlockAndRun()
     {
         var tbStyle = new Style(x => x.OfType<TextBlock>().Class("Heading1"));

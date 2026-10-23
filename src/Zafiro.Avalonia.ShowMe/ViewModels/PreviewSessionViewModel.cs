@@ -347,9 +347,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public IEnhancedCommand ResetZoomCommand { get; }
     public IEnhancedCommand FitCommand { get; }
     public IEnhancedCommand ResetDimensionsCommand { get; }
-    public IEnhancedCommand ApplyPresetCommand { get; }
     public IEnhancedCommand ToggleInspectorCommand { get; }
-    public IEnhancedCommand ClearSelectionCommand { get; }
     public IEnhancedCommand NavigateToCodeCommand { get; }
 
     public PreviewSessionViewModel(
@@ -397,14 +395,6 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         ResetZoomCommand = EnhancedCommand.Create(() => RequestResetZoom?.Invoke());
         FitCommand = EnhancedCommand.Create(() => RequestFit?.Invoke());
         ResetDimensionsCommand = EnhancedCommand.Create(ResetDimensions);
-        ApplyPresetCommand = EnhancedCommand.Create<DimensionPreset?>(p =>
-        {
-            if (p != null)
-            {
-                ApplyPreset(p);
-            }
-        });
-
         ToggleInspectorCommand = EnhancedCommand.Create(() => IsInspectorActive = !IsInspectorActive);
         ToggleSidebarCommand = EnhancedCommand.Create(() => IsSidebarVisible = !IsSidebarVisible);
         SetTreeModeCommand = EnhancedCommand.Create(() => SidebarMode = "Tree");
@@ -419,11 +409,6 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             SelectedCatalogNode = null;
             SidebarMode = "PreviewWith";
             server.SelectCatalogItem(null, "PreviewWith");
-        });
-        ClearSelectionCommand = EnhancedCommand.Create(() =>
-        {
-            SelectedElement = null;
-            SelectionBounds = null;
         });
         NavigateToCodeCommand = EnhancedCommand.Create(NavigateToCode);
 

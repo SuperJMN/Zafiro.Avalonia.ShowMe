@@ -11,11 +11,15 @@ namespace Zafiro.Avalonia.ShowMe.ViewModels;
 
 public sealed class MainViewModel : ReactiveObject
 {
+    private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(60);
+
     private readonly IStorageService storageService;
     private PreviewSessionViewModel? currentSession;
     private ThemeOption selectedTheme;
     private bool isLoading;
     private string loadingMessage = "Cargando...";
+    private string? loadingDetail;
+    private LoadProgress? currentStep;
     private string? errorMessage;
     private bool hasError;
     private readonly List<string> recentFiles = [];
@@ -40,19 +44,35 @@ public sealed class MainViewModel : ReactiveObject
     public PreviewSessionViewModel? CurrentSession
     {
         get => currentSession;
-        private set => this.RaiseAndSetIfChanged(ref currentSession, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref currentSession, value);
+            this.RaisePropertyChanged(nameof(IsWelcomeVisible));
+        }
     }
 
     public bool IsLoading
     {
         get => isLoading;
-        private set => this.RaiseAndSetIfChanged(ref isLoading, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref isLoading, value);
+            this.RaisePropertyChanged(nameof(IsWelcomeVisible));
+        }
     }
+
+    public bool IsWelcomeVisible => CurrentSession == null && !IsLoading;
 
     public string LoadingMessage
     {
         get => loadingMessage;
         private set => this.RaiseAndSetIfChanged(ref loadingMessage, value);
+    }
+
+    public string? LoadingDetail
+    {
+        get => loadingDetail;
+        private set => this.RaiseAndSetIfChanged(ref loadingDetail, value);
     }
 
     public string? ErrorMessage
@@ -97,28 +117,29 @@ public sealed class MainViewModel : ReactiveObject
         int? explicitWidth = null,
         int? explicitHeight = null)
     {
+        IProgress<LoadProgress>? progress = null;
+        PreviewSessionViewModel? session = null;
+
         try
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 HasError = false;
                 ErrorMessage = null;
+                currentStep = null;
+                LoadingMessage = $"Abriendo '{Path.GetFileName(axamlPath)}'...";
+                LoadingDetail = null;
                 IsLoading = true;
-                LoadingMessage = $"Resolviendo contexto para '{Path.GetFileName(axamlPath)}'...";
+                progress = new Progress<LoadProgress>(ShowProgress);
 
                 CurrentSession?.Dispose();
                 CurrentSession = null;
             });
 
-            var resolveResult = await PreviewTargetResolver.ResolveAsync(axamlPath, explicitProjectPath);
+            var resolveResult = await PreviewTargetResolver.ResolveAsync(axamlPath, explicitProjectPath, progress);
             if (resolveResult.IsFailure)
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ErrorMessage = resolveResult.Error;
-                    HasError = true;
-                    IsLoading = false;
-                });
+                await Dispatcher.UIThread.InvokeAsync(() => ShowFailure(resolveResult.Error));
                 return;
             }
 
@@ -126,11 +147,12 @@ public sealed class MainViewModel : ReactiveObject
 
             await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                LoadingMessage = $"Conectando con el previewer oficial ({target.TargetName})...";
+                ShowProgress(new LoadProgress(LoadStep.StartingPreviewer, "Iniciando el previewer", target.TargetName));
 
                 var initialXaml = await File.ReadAllTextAsync(target.AxamlPath);
                 var server = new PreviewServer(target);
-                var session = new PreviewSessionViewModel(
+                var firstRender = FirstRenderOf(server);
+                session = new PreviewSessionViewModel(
                     target,
                     server,
                     storageService,
@@ -138,9 +160,15 @@ public sealed class MainViewModel : ReactiveObject
                     explicitWidth,
                     explicitHeight);
 
-                CurrentSession = session;
-
                 await server.StartAsync(initialXaml, SelectedTheme.Id);
+
+                ShowProgress(new LoadProgress(LoadStep.Rendering, "Renderizando", Path.GetFileName(target.AxamlPath)));
+                if (await Task.WhenAny(firstRender, Task.Delay(RenderTimeout)) != firstRender)
+                {
+                    throw new TimeoutException($"El previewer no respondió en {RenderTimeout.TotalSeconds:0} s.");
+                }
+
+                await firstRender;
 
                 if (!recentFiles.Contains(axamlPath))
                 {
@@ -148,14 +176,16 @@ public sealed class MainViewModel : ReactiveObject
                     if (recentFiles.Count > 10) recentFiles.RemoveAt(recentFiles.Count - 1);
                     this.RaisePropertyChanged(nameof(RecentFiles));
                 }
+
+                CurrentSession = session;
             });
         }
         catch (Exception ex)
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                ErrorMessage = $"Error inesperado al cargar la previsualización: {ex.Message}";
-                HasError = true;
+                session?.Dispose();
+                ShowFailure(ex.Message);
             });
         }
         finally
@@ -165,6 +195,27 @@ public sealed class MainViewModel : ReactiveObject
                 IsLoading = false;
             });
         }
+    }
+
+    private void ShowProgress(LoadProgress step)
+    {
+        currentStep = step;
+        LoadingMessage = $"{step.Title}...";
+        LoadingDetail = step.Detail;
+    }
+
+    private void ShowFailure(string error)
+    {
+        ErrorMessage = currentStep == null ? error : $"Falló el paso «{currentStep.Title}»: {error}";
+        HasError = true;
+    }
+
+    private static Task FirstRenderOf(PreviewServer server)
+    {
+        var rendered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.XamlStatusReceived += _ => rendered.TrySetResult();
+        server.ErrorOccurred += error => rendered.TrySetException(new InvalidOperationException(error));
+        return rendered.Task;
     }
 
     private void ApplyTheme(string themeId)

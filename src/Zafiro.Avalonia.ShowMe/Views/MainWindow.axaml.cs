@@ -103,6 +103,26 @@ public partial class MainWindow : Window
         };
 
         bool initialFitDone = false;
+        void FitOnFirstFrame()
+        {
+            if (initialFitDone || session.CurrentBitmap == null)
+            {
+                return;
+            }
+
+            if (session.IsCatalogActive && !session.IsPreviewWithMode)
+            {
+                return;
+            }
+
+            initialFitDone = true;
+            global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                ZoomBorder?.AutoFit();
+                UpdateZoomText(session);
+            }, DispatcherPriority.Loaded);
+        }
+
         session.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(PreviewSessionViewModel.IsCatalogViewVisible))
@@ -112,21 +132,14 @@ public partial class MainWindow : Window
                     session.OnCatalogViewportWidthChanged(CatalogScrollViewer.Bounds.Width);
                 }
             }
-            else if (e.PropertyName == nameof(PreviewSessionViewModel.CurrentBitmap) && !initialFitDone && session.CurrentBitmap != null)
+            else if (e.PropertyName == nameof(PreviewSessionViewModel.CurrentBitmap))
             {
-                if (session.IsCatalogActive && !session.IsPreviewWithMode)
-                {
-                    return;
-                }
-
-                initialFitDone = true;
-                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    ZoomBorder?.AutoFit();
-                    UpdateZoomText(session);
-                }, DispatcherPriority.Loaded);
+                FitOnFirstFrame();
             }
         };
+
+        // La sesión se publica cuando el previewer ya ha respondido, así que su primer fotograma puede haber llegado antes.
+        FitOnFirstFrame();
 
         if (ZoomBorder != null)
         {

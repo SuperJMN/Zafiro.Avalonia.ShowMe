@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Xunit;
 using Zafiro.Avalonia.ShowMe.Core;
+using Zafiro.Avalonia.ShowMe.Protocol;
 using Zafiro.Avalonia.ShowMe.Services;
 using Zafiro.Avalonia.ShowMe.ViewModels;
 
@@ -45,11 +46,168 @@ public class PreviewSessionInspectorTests
         return session;
     }
 
+    private static InspectMenuItemViewModel CreateMenuItem(string typeName, Rect bounds, Action<InspectMenuItemViewModel> onSelect) =>
+        new(
+            typeName: typeName,
+            elementName: null,
+            lineNumber: 10,
+            linePosition: 2,
+            sourceUri: null,
+            resolvedFilePath: "/path/to/MainView.axaml",
+            relativeFilePath: null,
+            bounds: bounds,
+            onSelect: onSelect
+        );
+
+    private static void ReceiveHitTestResponse(PreviewSessionViewModel session, HitTestResponseMessage response)
+    {
+        var method = typeof(PreviewSessionViewModel).GetMethod(
+            "OnHitTestResultReceived",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+        );
+        method?.Invoke(session, [response]);
+    }
+
+    private static HitTestResponseMessage FoundButton(bool isHover) =>
+        new("test-req", Found: true, TypeName: "Button", ElementName: "SaveButton", LineNumber: 10, LinePosition: 5,
+            BoundsX: 10, BoundsY: 20, BoundsWidth: 100, BoundsHeight: 30, IsHover: isHover);
+
     [Fact]
-    public void Inspector_Is_Active_By_Default()
+    public void Inspector_Is_Off_By_Default()
     {
         using var session = CreateSession();
+        Assert.False(session.IsInspectorActive);
+    }
+
+    [Fact]
+    public void ToggleInspectorCommand_Turns_Pick_Mode_On_And_Off()
+    {
+        using var session = CreateSession();
+
+        session.ToggleInspectorCommand.Execute(null);
         Assert.True(session.IsInspectorActive);
+
+        session.ToggleInspectorCommand.Execute(null);
+        Assert.False(session.IsInspectorActive);
+    }
+
+    [Fact]
+    public void Click_In_Pick_Mode_Leaves_Pick_Mode()
+    {
+        using var session = CreateSession();
+        session.IsInspectorActive = true;
+
+        session.OnPointerInput(PointerActionType.Down, new Point(15, 25), PointerMouseButton.Left, default, false, false, false);
+
+        Assert.False(session.IsInspectorActive);
+    }
+
+    [Fact]
+    public void Hit_Test_Response_For_Click_Selects_Element()
+    {
+        using var session = CreateSession();
+
+        ReceiveHitTestResponse(session, FoundButton(isHover: false));
+
+        Assert.Equal("Button", session.SelectedElement?.TypeName);
+        Assert.Equal(new Rect(10, 20, 100, 30), session.SelectionBounds);
+    }
+
+    [Fact]
+    public void Hover_Response_Highlights_Element_In_Pick_Mode()
+    {
+        using var session = CreateSession();
+        session.IsInspectorActive = true;
+
+        ReceiveHitTestResponse(session, FoundButton(isHover: true));
+
+        Assert.Equal("Button", session.HoveredElement?.TypeName);
+        Assert.True(session.IsHoverAdornerVisible);
+    }
+
+    [Fact]
+    public void Hover_Response_Arriving_After_Leaving_Pick_Mode_Is_Ignored()
+    {
+        using var session = CreateSession();
+
+        ReceiveHitTestResponse(session, FoundButton(isHover: true));
+
+        Assert.Null(session.HoveredElement);
+        Assert.False(session.IsHoverAdornerVisible);
+    }
+
+    [Fact]
+    public void Selection_Persists_When_Leaving_Pick_Mode()
+    {
+        using var session = CreateSession();
+        ReceiveHitTestResponse(session, FoundButton(isHover: false));
+        session.IsInspectorActive = true;
+
+        session.IsInspectorActive = false;
+
+        Assert.Equal("Button", session.SelectedElement?.TypeName);
+        Assert.Equal(new Rect(10, 20, 100, 30), session.SelectionBounds);
+    }
+
+    [Fact]
+    public void Escape_In_Pick_Mode_Cancels_It_And_Keeps_Selection()
+    {
+        using var session = CreateSession();
+        ReceiveHitTestResponse(session, FoundButton(isHover: false));
+        session.IsInspectorActive = true;
+
+        var handled = session.HandleEscape();
+
+        Assert.True(handled);
+        Assert.False(session.IsInspectorActive);
+        Assert.Equal("Button", session.SelectedElement?.TypeName);
+    }
+
+    [Fact]
+    public void Escape_Outside_Pick_Mode_Clears_Selection()
+    {
+        using var session = CreateSession();
+        ReceiveHitTestResponse(session, FoundButton(isHover: false));
+
+        var handled = session.HandleEscape();
+
+        Assert.True(handled);
+        Assert.Null(session.SelectedElement);
+        Assert.Null(session.SelectionBounds);
+    }
+
+    [Fact]
+    public void Escape_Without_Pick_Mode_Or_Selection_Is_Left_To_The_Preview()
+    {
+        using var session = CreateSession();
+
+        Assert.False(session.HandleEscape());
+    }
+
+    [Fact]
+    public void Choosing_Context_Menu_Item_Selects_And_Highlights_It()
+    {
+        using var session = CreateSession();
+        session.IsInspectorActive = true;
+        var item = CreateMenuItem("TextBlock", new Rect(120, 250, 80, 20), session.SelectElement);
+
+        item.SelectCommand.Execute(null);
+
+        Assert.Equal("TextBlock", session.SelectedElement?.TypeName);
+        Assert.Equal(new Rect(120, 250, 80, 20), session.SelectionBounds);
+        Assert.False(session.IsInspectorActive);
+    }
+
+    [Fact]
+    public void Hovering_Context_Menu_Item_Highlights_It_With_Pick_Mode_Off()
+    {
+        using var session = CreateSession();
+        var item = CreateMenuItem("StackPanel", new Rect(0, 0, 200, 100), _ => { });
+
+        session.HoverElement(item);
+
+        Assert.True(session.IsHoverAdornerVisible);
+        Assert.Equal("StackPanel", session.HoveredElement?.TypeName);
     }
 
     [Fact]

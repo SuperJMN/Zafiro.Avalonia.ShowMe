@@ -13,6 +13,8 @@ namespace Zafiro.Avalonia.ShowMe.Views;
 
 public partial class MainWindow : Window
 {
+    private static readonly KeyGesture ToggleInspectorGesture = new(Key.C, KeyModifiers.Control | KeyModifiers.Shift);
+
     public MainWindow()
     {
         InitializeComponent();
@@ -200,11 +202,8 @@ public partial class MainWindow : Window
 
         if (props.IsRightButtonPressed)
         {
-            if (session.IsInspectorActive || e.KeyModifiers.HasFlag(KeyModifiers.Control))
-            {
-                session.RequestInspectContextMenu(pt);
-                e.Handled = true;
-            }
+            session.RequestInspectContextMenu(pt);
+            e.Handled = true;
             return;
         }
 
@@ -219,12 +218,8 @@ public partial class MainWindow : Window
         bool alt = keyMods.HasFlag(KeyModifiers.Alt);
         bool ctrl = keyMods.HasFlag(KeyModifiers.Control);
         bool shift = keyMods.HasFlag(KeyModifiers.Shift);
-        if (e.ClickCount >= 2 && (session.IsInspectorActive || ctrl))
-        {
-            session.NavigateToCode();
-        }
 
-        session.OnPointerInput(PointerActionType.Down, pt, btn, default, alt, ctrl, shift);
+        session.OnPointerInput(PointerActionType.Down, pt, btn, default, alt, ctrl, shift, e.ClickCount);
     }
 
     private void OnPreviewPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -238,10 +233,7 @@ public partial class MainWindow : Window
 
         if (props.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
         {
-            if (session.IsInspectorActive || e.KeyModifiers.HasFlag(KeyModifiers.Control))
-            {
-                e.Handled = true;
-            }
+            e.Handled = true;
             return;
         }
 
@@ -292,14 +284,17 @@ public partial class MainWindow : Window
 
         if (DataContext is not MainViewModel { CurrentSession: { } session }) return;
 
-        if (e.Key == Key.Escape)
+        if (e.Key == Key.Escape && session.HandleEscape())
         {
-            if (session.SelectedElement != null)
-            {
-                session.ClearSelection();
-                e.Handled = true;
-                return;
-            }
+            e.Handled = true;
+            return;
+        }
+
+        if (ToggleInspectorGesture.Matches(e))
+        {
+            session.ToggleInspectorCommand.Execute(null);
+            e.Handled = true;
+            return;
         }
 
         var focused = FocusManager?.GetFocusedElement();
@@ -347,7 +342,7 @@ public partial class MainWindow : Window
             var menuItem = new MenuItem
             {
                 Header = CreateInspectMenuItemHeader(item),
-                Command = item.NavigateCommand
+                Command = item.SelectCommand
             };
 
             menuItem.PointerEntered += (_, _) =>

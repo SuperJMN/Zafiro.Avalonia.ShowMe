@@ -35,7 +35,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private CancellationTokenSource? dragDebounceCts;
     private DimensionPreset? selectedPreset;
 
-    private bool isInspectorActive = true;
+    private bool isInspectorActive;
+    private bool isInspectionPress;
     private ElementInspectionInfo? selectedElement;
     private Rect? selectionBounds;
     private ElementInspectionInfo? hoveredElement;
@@ -127,11 +128,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         set
         {
             this.RaiseAndSetIfChanged(ref isInspectorActive, value);
-            this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
             if (!value)
             {
-                SelectedElement = null;
-                SelectionBounds = null;
                 ClearHover();
             }
         }
@@ -158,7 +156,6 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     }
 
     public bool IsHoverAdornerVisible =>
-        IsInspectorActive &&
         HoveredElement != null &&
         (SelectedElement == null || SelectedElement.Bounds != HoveredElement.Bounds);
 
@@ -505,28 +502,55 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         SetCustomDimensions(preset.Width, preset.Height);
     }
 
-    public void OnPointerInput(PointerActionType action, Point pt, PointerMouseButton button, Vector delta, bool alt, bool ctrl, bool shift)
+    public void OnPointerInput(PointerActionType action, Point pt, PointerMouseButton button, Vector delta, bool alt, bool ctrl, bool shift, int clickCount = 1)
     {
-        if (IsInspectorActive || ctrl)
+        if (action == PointerActionType.Down)
         {
-            if (button == PointerMouseButton.Right && action == PointerActionType.Down)
+            var isSecondClickOfInspection = clickCount >= 2 && isInspectionPress;
+            isInspectionPress = IsInspectorActive || ctrl || isSecondClickOfInspection;
+
+            if (isSecondClickOfInspection)
             {
-                RequestInspectContextMenu(pt);
+                NavigateToCode();
+                return;
             }
-            else if (action == PointerActionType.Down)
+
+            if (isInspectionPress)
             {
                 server.RequestHitTest(pt.X, pt.Y, isHover: false);
-            }
-            else if (action == PointerActionType.Move)
-            {
-                RequestHoverHitTest(pt);
+                IsInspectorActive = false;
+                return;
             }
         }
-        else
+        else if (action == PointerActionType.Up && isInspectionPress)
         {
-            ClearHover();
-            server.SendPointerEvent(action, pt.X, pt.Y, button, delta.X, delta.Y, alt, ctrl, shift);
+            return;
         }
+        else if (action == PointerActionType.Move && (IsInspectorActive || ctrl))
+        {
+            RequestHoverHitTest(pt);
+            return;
+        }
+
+        ClearHover();
+        server.SendPointerEvent(action, pt.X, pt.Y, button, delta.X, delta.Y, alt, ctrl, shift);
+    }
+
+    public bool HandleEscape()
+    {
+        if (IsInspectorActive)
+        {
+            IsInspectorActive = false;
+            return true;
+        }
+
+        if (SelectedElement != null)
+        {
+            ClearSelection();
+            return true;
+        }
+
+        return false;
     }
 
     public void RequestInspectContextMenu(Point pt)
@@ -599,10 +623,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
-    public void NavigateTo(InspectMenuItemViewModel item)
+    public void SelectElement(InspectMenuItemViewModel item)
     {
-        NavigateToFile(item.ResolvedFilePath, item.LineNumber, item.LinePosition);
-
+        IsInspectorActive = false;
         SelectedElement = new ElementInspectionInfo(
             TypeName: item.TypeName,
             ElementName: item.ElementName,
@@ -726,11 +749,11 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
     private void OnHitTestResultReceived(HitTestResponseMessage hit)
     {
-        Dispatcher.UIThread.Post(() =>
+        DispatchToUI(() =>
         {
             if (hit.IsHover)
             {
-                if (hit.Found)
+                if (hit.Found && IsInspectorActive)
                 {
                     var bounds = new Rect(hit.BoundsX, hit.BoundsY, hit.BoundsWidth, hit.BoundsHeight);
                     var resolvedFile = SourceFileResolver.Resolve(hit.SourceUri, Target);
@@ -809,7 +832,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                     resolvedFilePath: resolved,
                     relativeFilePath: relPath,
                     bounds: bounds,
-                    onSelect: vm => NavigateTo(vm)
+                    onSelect: SelectElement
                 );
             }).ToList();
 

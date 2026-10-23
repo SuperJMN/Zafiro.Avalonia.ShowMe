@@ -26,6 +26,7 @@ public sealed class PreviewServer : IDisposable
     public event Action<XamlStatusMessage>? XamlStatusReceived;
     public event Action<HitTestResponseMessage>? HitTestResultReceived;
     public event Action<ContextMenuHitTestResponseMessage>? ContextMenuHitTestResultReceived;
+    public event Action<FindElementResponseMessage>? FindElementResultReceived;
     public event Action<CatalogInfoMessage>? CatalogInfoReceived;
     public event Action<string>? StatusChanged;
     public event Action<string>? ErrorOccurred;
@@ -179,6 +180,10 @@ public sealed class PreviewServer : IDisposable
                 {
                     ContextMenuHitTestResultReceived?.Invoke(ctxHit);
                 }
+                else if (packet is FindElementResponseMessage found)
+                {
+                    FindElementResultReceived?.Invoke(found);
+                }
                 else if (packet is CatalogInfoMessage catInfo)
                 {
                     CatalogInfoReceived?.Invoke(catInfo);
@@ -263,6 +268,15 @@ public sealed class PreviewServer : IDisposable
     {
         var reqId = Guid.NewGuid().ToString();
         _ = SendMessageAsync(new ContextMenuHitTestRequestMessage(reqId, x, y), cts.Token);
+    }
+
+    /// <summary>
+    /// Asks the preview where the element with this identity is now, scrolling it into view.
+    /// </summary>
+    public void RequestFindElement(string typeName, string? elementName, int lineNumber, int linePosition, string? sourceUri, string? treePath)
+    {
+        var reqId = Guid.NewGuid().ToString();
+        _ = SendMessageAsync(new FindElementRequestMessage(reqId, typeName, elementName, lineNumber, linePosition, sourceUri, treePath), cts.Token);
     }
 
     public void SelectCatalogItem(string? itemId, string viewMode, string? filterQuery = null)

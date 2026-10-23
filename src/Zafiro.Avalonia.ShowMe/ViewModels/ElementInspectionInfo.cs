@@ -12,7 +12,8 @@ public sealed record ElementInspectionInfo(
     IReadOnlyList<string> Classes,
     IReadOnlyList<string> Ancestors,
     IReadOnlyDictionary<string, string> Properties,
-    string? ResolvedFilePath = null
+    string? ResolvedFilePath = null,
+    string? TreePath = null
 )
 {
     public string DisplayTitle => !string.IsNullOrWhiteSpace(ElementName)
@@ -30,6 +31,8 @@ public sealed record ElementInspectionInfo(
     public string ViewXamlToolTip => !string.IsNullOrWhiteSpace(SourceFileName)
         ? $"Ver {SourceFileName} (línea {LineNumber}) en ShowMe"
         : "Ver el XAML de este control en ShowMe";
+
+    public string OpenViewToolTip => $"Abrir {SourceFileName} en ShowMe (Alt+Izquierda para volver)";
 
     public string EditorToolTip => !string.IsNullOrWhiteSpace(SourceFileName)
         ? $"Abrir {SourceFileName} (línea {LineNumber}) en el editor de código"

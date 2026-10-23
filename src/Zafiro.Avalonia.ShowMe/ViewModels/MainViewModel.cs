@@ -1,5 +1,6 @@
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Avalonia;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -26,6 +27,11 @@ public sealed class MainViewModel : ReactiveObject
     private string? errorMessage;
     private bool hasError;
     private readonly List<string> recentFiles = [];
+    private readonly Stack<ViewVisit> backHistory = new();
+    private ViewVisit? currentVisit;
+    private readonly BehaviorSubject<bool> canGoBack = new(false);
+    private readonly SemaphoreSlim loadLock = new(1, 1);
+    private int loadGeneration;
 
     public IReadOnlyList<ThemeOption> ThemeOptions { get; } =
     [
@@ -93,6 +99,17 @@ public sealed class MainViewModel : ReactiveObject
     public IReadOnlyList<string> RecentFiles => recentFiles;
 
     /// <summary>
+    /// True when there is a previous view to go back to with "Atrás".
+    /// </summary>
+    public bool CanGoBack => canGoBack.Value;
+
+    public string BackToolTip => backHistory.TryPeek(out var previous)
+        ? $"Volver a {Path.GetFileName(previous.AxamlPath)} (Alt+Izquierda)"
+        : "Volver a la vista anterior (Alt+Izquierda)";
+
+    public IEnhancedCommand GoBackCommand { get; }
+
+    /// <summary>
     /// The open "Editor de código…" dialog, or null when it is closed.
     /// </summary>
     public EditorSettingsViewModel? EditorSettings
@@ -115,6 +132,7 @@ public sealed class MainViewModel : ReactiveObject
 
         OpenFileCommand = EnhancedCommand.Create(OpenFileAsync);
         DismissErrorCommand = EnhancedCommand.Create(() => { HasError = false; });
+        GoBackCommand = EnhancedCommand.Create(GoBackAsync, canGoBack);
         ConfigureEditorCommand = EnhancedCommand.Create(
             () => EditorSettings = new EditorSettingsViewModel(codeEditor!, () => EditorSettings = null),
             Observable.Return(codeEditor != null));
@@ -129,32 +147,75 @@ public sealed class MainViewModel : ReactiveObject
         }
     }
 
-    public async Task LoadFileAsync(
+    /// <summary>
+    /// Opens another view in this window, with its own project context, remembering the current one for "Atrás".
+    /// </summary>
+    public Task OpenViewAsync(string axamlPath) => LoadFileAsync(axamlPath);
+
+    /// <summary>
+    /// Goes back to the previous view with the size the user chose for it and, if it is still there, its selection.
+    /// </summary>
+    public Task GoBackAsync()
+    {
+        if (!backHistory.TryPop(out var previous)) return Task.CompletedTask;
+
+        UpdateBackHistory();
+        return LoadAsync(previous, rememberCurrent: false);
+    }
+
+    public Task LoadFileAsync(
         string axamlPath,
         string? explicitProjectPath = null,
         int? explicitWidth = null,
         int? explicitHeight = null)
     {
+        return LoadAsync(new ViewVisit(axamlPath, explicitProjectPath, explicitWidth, explicitHeight), rememberCurrent: true);
+    }
+
+    /// <summary>
+    /// Shows <paramref name="visit"/> in place of the current view. Loads run one at a time and the last one requested
+    /// wins: a load that a newer one supersedes stops at its next step and never starts, or disposes, its previewer.
+    /// </summary>
+    private async Task LoadAsync(ViewVisit visit, bool rememberCurrent)
+    {
+        var axamlPath = visit.AxamlPath;
+        var generation = 0;
         IProgress<LoadProgress>? progress = null;
         PreviewSessionViewModel? session = null;
 
-        try
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            generation = Interlocked.Increment(ref loadGeneration);
+            HasError = false;
+            ErrorMessage = null;
+            currentStep = null;
+            LoadingMessage = $"Abriendo '{Path.GetFileName(axamlPath)}'...";
+            LoadingDetail = null;
+            IsLoading = true;
+            progress = new Progress<LoadProgress>(step =>
             {
-                HasError = false;
-                ErrorMessage = null;
-                currentStep = null;
-                LoadingMessage = $"Abriendo '{Path.GetFileName(axamlPath)}'...";
-                LoadingDetail = null;
-                IsLoading = true;
-                progress = new Progress<LoadProgress>(ShowProgress);
-
-                CurrentSession?.Dispose();
-                CurrentSession = null;
+                if (IsLatest(generation)) ShowProgress(step);
             });
 
-            var resolveResult = await PreviewTargetResolver.ResolveAsync(axamlPath, explicitProjectPath, progress);
+            if (rememberCurrent && CurrentSession is { } current && currentVisit is { } shown && !IsSameFile(current.Target.AxamlPath, axamlPath))
+            {
+                backHistory.Push(shown with { ChosenSize = current.ChosenSize, Selection = current.SelectedElement });
+                UpdateBackHistory();
+            }
+
+            CurrentSession?.Dispose();
+            CurrentSession = null;
+            currentVisit = null;
+        });
+
+        await loadLock.WaitAsync();
+        try
+        {
+            if (!IsLatest(generation)) return;
+
+            var resolveResult = await PreviewTargetResolver.ResolveAsync(axamlPath, visit.ProjectPath, progress);
+            if (!IsLatest(generation)) return;
+
             if (resolveResult.IsFailure)
             {
                 await Dispatcher.UIThread.InvokeAsync(() => ShowFailure(resolveResult.Error));
@@ -165,6 +226,8 @@ public sealed class MainViewModel : ReactiveObject
 
             await Dispatcher.UIThread.InvokeAsync(async () =>
             {
+                if (!IsLatest(generation)) return;
+
                 ShowProgress(new LoadProgress(LoadStep.StartingPreviewer, "Iniciando el previewer", target.TargetName));
 
                 var initialXaml = await File.ReadAllTextAsync(target.AxamlPath);
@@ -175,9 +238,11 @@ public sealed class MainViewModel : ReactiveObject
                     server,
                     storageService,
                     SelectedTheme.Id,
-                    explicitWidth,
-                    explicitHeight,
-                    codeEditor);
+                    visit.Width,
+                    visit.Height,
+                    codeEditor,
+                    OpenViewAsync,
+                    visit.ChosenSize);
 
                 await server.StartAsync(initialXaml, SelectedTheme.Id);
 
@@ -189,6 +254,12 @@ public sealed class MainViewModel : ReactiveObject
 
                 await firstRender;
 
+                if (!IsLatest(generation))
+                {
+                    session.Dispose();
+                    return;
+                }
+
                 if (!recentFiles.Contains(axamlPath))
                 {
                     recentFiles.Insert(0, axamlPath);
@@ -197,6 +268,11 @@ public sealed class MainViewModel : ReactiveObject
                 }
 
                 CurrentSession = session;
+                currentVisit = visit with { ChosenSize = null, Selection = null };
+                if (visit.Selection is { } selection)
+                {
+                    session.RestoreSelection(selection);
+                }
             });
         }
         catch (Exception ex)
@@ -204,17 +280,30 @@ public sealed class MainViewModel : ReactiveObject
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 session?.Dispose();
-                ShowFailure(ex.Message);
+                if (IsLatest(generation)) ShowFailure(ex.Message);
             });
         }
         finally
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                IsLoading = false;
+                if (IsLatest(generation)) IsLoading = false;
             });
+            loadLock.Release();
         }
     }
+
+    private bool IsLatest(int generation) => generation == Volatile.Read(ref loadGeneration);
+
+    private void UpdateBackHistory()
+    {
+        canGoBack.OnNext(backHistory.Count > 0);
+        this.RaisePropertyChanged(nameof(CanGoBack));
+        this.RaisePropertyChanged(nameof(BackToolTip));
+    }
+
+    private static bool IsSameFile(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.Ordinal);
 
     private void ShowProgress(LoadProgress step)
     {
@@ -254,3 +343,15 @@ public sealed class MainViewModel : ReactiveObject
         CurrentSession?.UpdateTheme(themeId);
     }
 }
+
+/// <summary>
+/// A view shown in the window, with what is needed to show it again as it was: how it was opened (its project and the
+/// size given on the command line) and, once left behind by navigation, the size the user chose and the selection.
+/// </summary>
+public sealed record ViewVisit(
+    string AxamlPath,
+    string? ProjectPath = null,
+    int? Width = null,
+    int? Height = null,
+    PixelSize? ChosenSize = null,
+    ElementInspectionInfo? Selection = null);

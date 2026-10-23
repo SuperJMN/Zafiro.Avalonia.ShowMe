@@ -251,6 +251,13 @@ public sealed class ShowMeHostService
                 });
                 break;
 
+            case FindElementRequestMessage find:
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await HandleFindElementAsync(find, ct);
+                });
+                break;
+
             case SelectCatalogItemMessage sel:
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -530,7 +537,8 @@ public sealed class ShowMeHostService
                 Classes: control.Classes.ToList(),
                 AncestorTree: ancestors,
                 Properties: props,
-                IsHover: hit.IsHover
+                IsHover: hit.IsHover,
+                TreePath: hit.IsHover ? null : TreePathOf(control)
             );
 
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
@@ -655,7 +663,8 @@ public sealed class ShowMeHostService
                     BoundsX: rect.X,
                     BoundsY: rect.Y,
                     BoundsWidth: rect.Width,
-                    BoundsHeight: rect.Height
+                    BoundsHeight: rect.Height,
+                    TreePath: TreePathOf(c)
                 ));
             }
         }
@@ -677,6 +686,108 @@ public sealed class ShowMeHostService
         {
             sendLock.Release();
         }
+    }
+
+    private async Task HandleFindElementAsync(FindElementRequestMessage req, CancellationToken ct)
+    {
+        if (window == null) return;
+
+        var matches = window.GetVisualDescendants()
+            .OfType<Control>()
+            .Where(c => IsElement(c, req))
+            .ToList();
+        var control = matches.FirstOrDefault(c => req.TreePath != null && TreePathOf(c) == req.TreePath)
+                      ?? matches.FirstOrDefault();
+
+        VisualItemInfo? item = null;
+        if (control != null)
+        {
+            // The view may start scrolled elsewhere than when the element was picked.
+            control.BringIntoView();
+            window.UpdateLayout();
+
+            var transform = control.TransformToVisual(window);
+            var rect = transform.HasValue
+                ? new Rect(0, 0, control.Bounds.Width, control.Bounds.Height).TransformToAABB(transform.Value)
+                : control.Bounds;
+            item = new VisualItemInfo(
+                TypeName: req.TypeName,
+                ElementName: req.ElementName,
+                LineNumber: req.LineNumber,
+                LinePosition: req.LinePosition,
+                SourceUri: req.SourceUri,
+                BoundsX: rect.X,
+                BoundsY: rect.Y,
+                BoundsWidth: rect.Width,
+                BoundsHeight: rect.Height,
+                TreePath: TreePathOf(control));
+        }
+
+        await sendLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await ShowMeFraming.WriteControlMessageAsync(stream, new FindElementResponseMessage(req.RequestId, item), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            sendLock.Release();
+        }
+
+        if (control != null)
+        {
+            RenderAndSendFrame();
+        }
+    }
+
+    /// <summary>
+    /// Whether the control is the element described by the request, located the same way the hit tests locate it.
+    /// </summary>
+    private bool IsElement(Control control, FindElementRequestMessage req)
+    {
+        if (control.GetType().Name != req.TypeName || (control.Name ?? "") != (req.ElementName ?? "")) return false;
+
+        var xamlInfo = XamlSourceInfo.GetXamlSourceInfo(control);
+        if (xamlInfo != null && xamlInfo.LineNumber > 0)
+        {
+            return xamlInfo.LineNumber == req.LineNumber &&
+                   xamlInfo.LinePosition == req.LinePosition &&
+                   xamlInfo.SourceUri?.ToString() == req.SourceUri;
+        }
+
+        if (req.SourceUri != null) return false;
+        if (req.LineNumber == 0) return true;
+        if (currentLineMapper == null) return false;
+
+        return new[] { currentLineMapper.FindByName(control.Name), currentLineMapper.FindByTag(control.GetType().Name) }
+            .Any(location => location != null && location.LineNumber == req.LineNumber && location.LinePosition == req.LinePosition);
+    }
+
+    /// <summary>
+    /// The position of the control in the visual tree, as the index among its siblings of each control from the window
+    /// down. It tells apart the instances of a template, which share their source location.
+    /// </summary>
+    private string? TreePathOf(Control control)
+    {
+        var indexes = new List<int>();
+        Visual? current = control;
+        while (current != null && current != window)
+        {
+            var parent = current.GetVisualParent();
+            if (parent == null) return null;
+
+            var index = 0;
+            foreach (var sibling in parent.GetVisualChildren())
+            {
+                if (sibling == current) break;
+                index++;
+            }
+
+            indexes.Add(index);
+            current = parent;
+        }
+
+        indexes.Reverse();
+        return string.Join("/", indexes);
     }
 
     private static Dictionary<string, string> ExtractProperties(Control control)

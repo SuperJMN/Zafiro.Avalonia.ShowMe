@@ -17,6 +17,11 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
     public string? RelativeFilePath { get; } // null if local file!
     public Rect Bounds { get; }
 
+    /// <summary>
+    /// Where the element sits in the visual tree of the preview, which tells apart the instances of a template.
+    /// </summary>
+    public string? TreePath { get; }
+
     public string LocationText => LineNumber > 0 ? $"{LineNumber}:{LinePosition}" : "";
 
     public string DisplayText
@@ -44,6 +49,16 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
 
     public bool CanOpenInEditor { get; }
 
+    /// <summary>
+    /// Selects the element and opens the view that defines it in ShowMe. Only offered when <see cref="CanOpenView"/>.
+    /// </summary>
+    public IEnhancedCommand OpenViewCommand { get; }
+
+    /// <summary>
+    /// True when the element comes from another file that ShowMe can preview.
+    /// </summary>
+    public bool CanOpenView { get; }
+
     public InspectMenuItemViewModel(
         string typeName,
         string? elementName,
@@ -55,7 +70,9 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         Rect bounds,
         Action<InspectMenuItemViewModel> onSelect,
         Action<InspectMenuItemViewModel>? onViewXaml = null,
-        Action<InspectMenuItemViewModel>? onOpenInEditor = null)
+        Action<InspectMenuItemViewModel>? onOpenInEditor = null,
+        Func<InspectMenuItemViewModel, Task>? onOpenView = null,
+        string? treePath = null)
     {
         TypeName = typeName;
         ElementName = elementName;
@@ -65,9 +82,12 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ResolvedFilePath = resolvedFilePath;
         RelativeFilePath = relativeFilePath;
         Bounds = bounds;
+        TreePath = treePath;
         CanOpenInEditor = onOpenInEditor != null;
         SelectCommand = EnhancedCommand.Create(() => onSelect(this));
         ViewXamlCommand = EnhancedCommand.Create(() => onViewXaml?.Invoke(this));
         OpenInEditorCommand = EnhancedCommand.Create(() => onOpenInEditor?.Invoke(this));
+        CanOpenView = onOpenView != null;
+        OpenViewCommand = EnhancedCommand.Create(() => onOpenView?.Invoke(this) ?? Task.CompletedTask);
     }
 }

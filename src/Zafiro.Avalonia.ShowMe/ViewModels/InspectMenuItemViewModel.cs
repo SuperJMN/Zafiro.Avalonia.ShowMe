@@ -30,11 +30,19 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         }
     }
 
-    public string NavigationToolTip => !string.IsNullOrWhiteSpace(RelativeFilePath)
-        ? $"Abrir {RelativeFilePath}:{LineNumber} en el editor"
-        : $"Abrir línea {LineNumber}:{LinePosition} en el editor";
-
     public IEnhancedCommand SelectCommand { get; }
+
+    /// <summary>
+    /// Selects the element and shows its XAML inside ShowMe.
+    /// </summary>
+    public IEnhancedCommand ViewXamlCommand { get; }
+
+    /// <summary>
+    /// Selects the element and opens it in the external editor. Only offered when <see cref="CanOpenInEditor"/>.
+    /// </summary>
+    public IEnhancedCommand OpenInEditorCommand { get; }
+
+    public bool CanOpenInEditor { get; }
 
     public InspectMenuItemViewModel(
         string typeName,
@@ -45,7 +53,9 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         string resolvedFilePath,
         string? relativeFilePath,
         Rect bounds,
-        Action<InspectMenuItemViewModel> onSelect)
+        Action<InspectMenuItemViewModel> onSelect,
+        Action<InspectMenuItemViewModel>? onViewXaml = null,
+        Action<InspectMenuItemViewModel>? onOpenInEditor = null)
     {
         TypeName = typeName;
         ElementName = elementName;
@@ -55,6 +65,9 @@ public sealed class InspectMenuItemViewModel : ReactiveObject
         ResolvedFilePath = resolvedFilePath;
         RelativeFilePath = relativeFilePath;
         Bounds = bounds;
+        CanOpenInEditor = onOpenInEditor != null;
         SelectCommand = EnhancedCommand.Create(() => onSelect(this));
+        ViewXamlCommand = EnhancedCommand.Create(() => onViewXaml?.Invoke(this));
+        OpenInEditorCommand = EnhancedCommand.Create(() => onOpenInEditor?.Invoke(this));
     }
 }

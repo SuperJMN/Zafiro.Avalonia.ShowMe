@@ -343,7 +343,6 @@ public class PreviewSessionInspectorTests
 
         Assert.Equal("TextBlock #MyText [15:4]", localItem.DisplayText);
         Assert.Equal("15:4", localItem.LocationText);
-        Assert.Equal("Abrir línea 15:4 en el editor", localItem.NavigationToolTip);
 
         var remoteItem = new InspectMenuItemViewModel(
             typeName: "WellStatusCardView",
@@ -359,7 +358,6 @@ public class PreviewSessionInspectorTests
 
         Assert.Equal("WellStatusCardView (Cards/Card.axaml) [81:1]", remoteItem.DisplayText);
         Assert.Equal("Cards/Card.axaml", remoteItem.RelativeFilePath);
-        Assert.Equal("Abrir Cards/Card.axaml:81 en el editor", remoteItem.NavigationToolTip);
     }
 
     [Fact]

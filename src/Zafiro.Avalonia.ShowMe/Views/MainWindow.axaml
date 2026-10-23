@@ -306,6 +306,15 @@
                                                   Width="13" Height="13" />
                                     </MenuItem.Icon>
                                 </MenuItem>
+                                <Separator />
+                                <MenuItem Header="Editor de código…"
+                                          Command="{Binding ConfigureEditorCommand}"
+                                          ToolTip.Tip="Elegir el editor externo de «Abrir en el editor»">
+                                    <MenuItem.Icon>
+                                        <PathIcon Data="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"
+                                                  Width="13" Height="13" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
@@ -314,7 +323,7 @@
         </Border>
 
         <!-- ================= ÁREA CENTRAL DE PREVISUALIZACIÓN ================= -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
             
             <!-- PANEL LATERAL NATIVO: CATÁLOGO DE RECURSOS Y ESTILOS -->
             <Border Grid.Column="0"
@@ -842,6 +851,49 @@
             </Border>
 
         </Panel>
+
+            <!-- VISOR DE XAML (solo lectura): ocupa su propia columna para no tapar la vista previa -->
+            <Border Grid.Column="2"
+                    Width="480"
+                    IsVisible="{Binding CurrentSession.SourceView, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
+                    Background="{DynamicResource SystemChromeMediumColor}"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="1,0,0,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top"
+                            Padding="10,6"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6">
+                            <PathIcon Grid.Column="0"
+                                      Data="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"
+                                      Width="13" Height="13" VerticalAlignment="Center"
+                                      Foreground="{DynamicResource SystemAccentColor}" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding CurrentSession.SourceView.LocationText, FallbackValue=''}"
+                                       ToolTip.Tip="{Binding CurrentSession.SourceView.FilePath, FallbackValue=''}"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="toolbar"
+                                    Command="{Binding CurrentSession.OpenInEditorCommand}"
+                                    IsVisible="{Binding CurrentSession.CanOpenInEditor, FallbackValue=False}"
+                                    ToolTip.Tip="{Binding CurrentSession.SelectedElement.EditorToolTip, FallbackValue='Abrir en el editor de código'}">
+                                <TextBlock Text="Abrir en el editor" FontSize="11.5" VerticalAlignment="Center" />
+                            </Button>
+                            <Button Grid.Column="3" Classes="toolbar icon"
+                                    Command="{Binding CurrentSession.CloseSourceViewCommand}"
+                                    AutomationProperties.Name="Cerrar visor de XAML"
+                                    ToolTip.Tip="Cerrar visor de XAML (Esc)">
+                                <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SystemBaseMediumColor}" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <views:XamlSourceView x:Name="SourceViewer"
+                                          Source="{Binding CurrentSession.SourceView, FallbackValue={x:Null}}" />
+                </DockPanel>
+            </Border>
         </Grid>
 
         <!-- ================= BARRA DE ESTADO ================= -->
@@ -891,14 +943,29 @@
                             <TextBlock Text="{Binding CurrentSession.SelectedElement.Bounds.Height, StringFormat='{}{0:0.#} px'}" FontSize="11" FontWeight="Medium" />
                         </StackPanel>
                     </Border>
-                    <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"
-                            Command="{Binding CurrentSession.NavigateToCodeCommand}"
-                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.NavigationToolTip}"
-                            IsVisible="{Binding CurrentSession.SelectedElement.LocationText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <Border Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2"
+                            IsVisible="{Binding CurrentSession.SelectedElement.LocationText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}">
                         <TextBlock Text="{Binding CurrentSession.SelectedElement.LocationText}"
                                    Foreground="{DynamicResource SystemAccentColor}"
                                    FontWeight="SemiBold"
                                    FontSize="11" />
+                    </Border>
+                    <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"
+                            Command="{Binding CurrentSession.ViewXamlCommand}"
+                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.ViewXamlToolTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" Width="11" Height="11" VerticalAlignment="Center" />
+                            <TextBlock Text="Ver XAML" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Background="{DynamicResource SystemChromeMediumColor}" CornerRadius="3" Padding="6,2" MinHeight="0"
+                            Command="{Binding CurrentSession.OpenInEditorCommand}"
+                            IsVisible="{Binding CurrentSession.CanOpenInEditor, FallbackValue=False}"
+                            ToolTip.Tip="{Binding CurrentSession.SelectedElement.EditorToolTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" Width="11" Height="11" VerticalAlignment="Center" />
+                            <TextBlock Text="Abrir en el editor" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
                     </Button>
                 </StackPanel>
 
@@ -917,6 +984,53 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- ================= DIÁLOGO: EDITOR DE CÓDIGO ================= -->
+        <Panel Grid.Row="0" Grid.RowSpan="3"
+               IsVisible="{Binding EditorSettings, Converter={x:Static ObjectConverters.IsNotNull}}"
+               Background="#66000000">
+            <Border Width="520"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource SystemChromeMediumColor}"
+                    CornerRadius="8"
+                    Padding="20,18"
+                    BoxShadow="0 8 24 0 #40000000">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Editor de código" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Text="Comando que abre un elemento en tu editor con «Abrir en el editor». Ver el XAML siempre ocurre dentro de ShowMe."
+                               Foreground="{DynamicResource SystemBaseMediumColor}"
+                               FontSize="12"
+                               TextWrapping="Wrap" />
+                    <TextBox x:Name="EditorCommandBox"
+                             Text="{Binding EditorSettings.Command, FallbackValue=''}"
+                             PlaceholderText="rider --line {line} --column {column} {file}"
+                             FontFamily="Cascadia Code,JetBrains Mono,Consolas,DejaVu Sans Mono,monospace"
+                             FontSize="12" />
+                    <TextBlock Text="{}{file}, {line} y {column} se sustituyen por el archivo, la línea y la columna. Déjalo vacío para usar $VISUAL o $EDITOR."
+                               Foreground="{DynamicResource SystemBaseMediumColor}"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EditorSettings.CurrentEditorText, FallbackValue=''}"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="Esta sesión se abrió con --editor, que prevalece sobre el editor guardado."
+                               IsVisible="{Binding EditorSettings.IsOverriddenByCommandLine, FallbackValue=False}"
+                               Foreground="{DynamicResource SystemAccentColor}"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EditorSettings.Error, FallbackValue=''}"
+                               IsVisible="{Binding EditorSettings.Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}"
+                               Foreground="#E53935"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+                        <Button Classes="toolbar" Command="{Binding EditorSettings.CancelCommand}" Content="Cancelar" />
+                        <Button Classes="toolbar accent" Command="{Binding EditorSettings.SaveCommand}" Content="Guardar" IsDefault="True" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Panel>
 
     </Grid>
 </Window>

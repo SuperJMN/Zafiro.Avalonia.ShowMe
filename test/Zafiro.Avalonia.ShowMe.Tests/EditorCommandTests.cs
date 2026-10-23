@@ -119,7 +119,7 @@ public class EditorCommandTests
     }
 
     [Fact]
-    public void Without_template_or_environment_the_system_handler_is_used()
+    public void Without_template_or_environment_no_editor_is_resolved()
     {
         var command = EditorCommand.Resolve(null, Environment(("VISUAL", " ")), Executables(), File, 4, 6);
 

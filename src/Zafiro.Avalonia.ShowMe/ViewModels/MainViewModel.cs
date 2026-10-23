@@ -1,4 +1,5 @@
 using System.Reactive;
+using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -14,8 +15,9 @@ public sealed class MainViewModel : ReactiveObject
     private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(60);
 
     private readonly IStorageService storageService;
-    private readonly string? editorTemplate;
+    private readonly CodeEditor? codeEditor;
     private PreviewSessionViewModel? currentSession;
+    private EditorSettingsViewModel? editorSettings;
     private ThemeOption selectedTheme;
     private bool isLoading;
     private string loadingMessage = "Cargando...";
@@ -90,18 +92,32 @@ public sealed class MainViewModel : ReactiveObject
 
     public IReadOnlyList<string> RecentFiles => recentFiles;
 
+    /// <summary>
+    /// The open "Editor de código…" dialog, or null when it is closed.
+    /// </summary>
+    public EditorSettingsViewModel? EditorSettings
+    {
+        get => editorSettings;
+        private set => this.RaiseAndSetIfChanged(ref editorSettings, value);
+    }
+
+    public IEnhancedCommand ConfigureEditorCommand { get; }
+
     public IEnhancedCommand OpenFileCommand { get; }
     public IEnhancedCommand DismissErrorCommand { get; }
 
-    public MainViewModel(IStorageService storageService, string initialTheme = XamlThemeModifier.ThemeDefault, string? editorTemplate = null)
+    public MainViewModel(IStorageService storageService, string initialTheme = XamlThemeModifier.ThemeDefault, CodeEditor? codeEditor = null)
     {
         this.storageService = storageService;
-        this.editorTemplate = editorTemplate;
+        this.codeEditor = codeEditor;
         selectedTheme = ThemeOptions.FirstOrDefault(t => string.Equals(t.Id, initialTheme, StringComparison.OrdinalIgnoreCase))
                         ?? ThemeOptions[0];
 
         OpenFileCommand = EnhancedCommand.Create(OpenFileAsync);
         DismissErrorCommand = EnhancedCommand.Create(() => { HasError = false; });
+        ConfigureEditorCommand = EnhancedCommand.Create(
+            () => EditorSettings = new EditorSettingsViewModel(codeEditor!, () => EditorSettings = null),
+            Observable.Return(codeEditor != null));
     }
 
     public async Task OpenFileAsync()
@@ -161,7 +177,7 @@ public sealed class MainViewModel : ReactiveObject
                     SelectedTheme.Id,
                     explicitWidth,
                     explicitHeight,
-                    editorTemplate);
+                    codeEditor);
 
                 await server.StartAsync(initialXaml, SelectedTheme.Id);
 

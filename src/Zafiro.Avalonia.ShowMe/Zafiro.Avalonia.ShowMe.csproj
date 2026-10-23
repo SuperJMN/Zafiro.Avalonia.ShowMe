@@ -22,6 +22,10 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <RollForward>Major</RollForward>
+
+    <!-- Platforms whose native assets ship with the tool. ShowMe needs the .NET SDK and a desktop to render,
+         so the rest are left out. Each entry also keeps its more specific RIDs (osx keeps osx-x64 and osx-arm64). -->
+    <SupportedNativeRuntimeIdentifiers>win-x64;win-arm64;osx;linux-x64;linux-arm64</SupportedNativeRuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +36,17 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <Target Name="RemoveUnsupportedRuntimesFromToolPackage" AfterTargets="ComputeResolvedFilesToPublishList">
+    <PropertyGroup>
+      <_SupportedRuntimeIdentifierPattern>^($(SupportedNativeRuntimeIdentifiers.Replace(';', '|')))(-.+)?$</_SupportedRuntimeIdentifierPattern>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.RuntimeIdentifier)' != '' and !$([System.Text.RegularExpressions.Regex]::IsMatch('%(ResolvedFileToPublish.RuntimeIdentifier)', '$(_SupportedRuntimeIdentifierPattern)'))" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="RemoveSymbolsFromToolPackage" BeforeTargets="PackTool">
     <ItemGroup>

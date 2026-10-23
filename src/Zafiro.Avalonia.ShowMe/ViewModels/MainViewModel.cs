@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using ReactiveUI;
 using Zafiro.Avalonia.ShowMe.Core;
 using Zafiro.Avalonia.ShowMe.Services;
+using Zafiro.UI.Commands;
 
 namespace Zafiro.Avalonia.ShowMe.ViewModels;
 
@@ -68,8 +69,8 @@ public sealed class MainViewModel : ReactiveObject
 
     public IReadOnlyList<string> RecentFiles => recentFiles;
 
-    public System.Windows.Input.ICommand OpenFileCommand { get; }
-    public System.Windows.Input.ICommand DismissErrorCommand { get; }
+    public IEnhancedCommand OpenFileCommand { get; }
+    public IEnhancedCommand DismissErrorCommand { get; }
 
     public MainViewModel(IStorageService storageService, string initialTheme = XamlThemeModifier.ThemeDefault)
     {
@@ -77,8 +78,8 @@ public sealed class MainViewModel : ReactiveObject
         selectedTheme = ThemeOptions.FirstOrDefault(t => string.Equals(t.Id, initialTheme, StringComparison.OrdinalIgnoreCase))
                         ?? ThemeOptions[0];
 
-        OpenFileCommand = new AsyncDelegateCommand(OpenFileAsync);
-        DismissErrorCommand = new DelegateCommand(() => { HasError = false; });
+        OpenFileCommand = EnhancedCommand.Create(OpenFileAsync);
+        DismissErrorCommand = EnhancedCommand.Create(() => { HasError = false; });
     }
 
     public async Task OpenFileAsync()

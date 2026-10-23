@@ -14,6 +14,10 @@
         MinWidth="800" MinHeight="450"
         WindowStartupLocation="CenterScreen">
 
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
+    </Window.KeyBindings>
+
     <Window.Styles>
         <!-- Estilos para los Thumbs de redimensionamiento -->
         <Style Selector="views|ResizeThumb">

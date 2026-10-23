@@ -1,6 +1,5 @@
 using SkiaSharp;
 using Xunit;
-using Xunit.Abstractions;
 using Zafiro.Avalonia.ShowMe.Core;
 using Zafiro.Avalonia.ShowMe.Protocol;
 

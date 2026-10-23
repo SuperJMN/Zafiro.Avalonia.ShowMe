@@ -970,6 +970,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public void Dispose()
     {
         server.CatalogInfoReceived -= OnCatalogInfoReceived;
+        dragDebounceCts?.Cancel();
         dragDebounceCts?.Dispose();
         fileWatcher?.Dispose();
         server.Dispose();

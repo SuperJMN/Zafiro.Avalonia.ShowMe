@@ -1,4 +1,6 @@
+using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Xunit;
 using Zafiro.Avalonia.ShowMe.Core;
 using Zafiro.Avalonia.ShowMe.Services;
@@ -74,6 +76,19 @@ public class PreviewSessionResizeTests
 
         Assert.Equal(100, session.PreviewWidth);
         Assert.Equal(100, session.PreviewHeight);
+    }
+
+    [AvaloniaFact]
+    public void Disposing_During_ResizeDrag_Does_Not_Resize_The_Disposed_Server()
+    {
+        var session = CreateSession(600, 960);
+        session.OnResizeDrag(750, 800);
+        session.Dispose();
+
+        Thread.Sleep(500);
+
+        var exception = Record.Exception(() => Dispatcher.UIThread.RunJobs());
+        Assert.Null(exception);
     }
 
     [Fact]

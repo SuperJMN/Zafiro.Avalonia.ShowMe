@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.PanAndZoom;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -380,6 +382,27 @@ public partial class MainWindow : Window
                 Header = CreateInspectMenuItemHeader(item),
                 Command = item.SelectCommand
             };
+
+            menuItem.Items.Add(new MenuItem { Header = "Ver XAML", Command = item.ViewXamlCommand });
+            if (item.CanOpenInEditor)
+            {
+                menuItem.Items.Add(new MenuItem { Header = "Abrir en el editor", Command = item.OpenInEditorCommand });
+            }
+
+            // A mouse click on an item with a submenu only opens the submenu and never runs its Command,
+            // so releasing the button on the item's own row selects the element too.
+            menuItem.AddHandler(PointerReleasedEvent, (_, e) =>
+            {
+                var clicked = (e.Source as StyledElement)?.FindLogicalAncestorOfType<MenuItem>(includeSelf: true);
+                if (clicked != menuItem || e.InitialPressMouseButton != MouseButton.Left)
+                {
+                    return;
+                }
+
+                item.SelectCommand.Execute(null);
+                menu.Close();
+                e.Handled = true;
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
 
             menuItem.PointerEntered += (_, _) =>
             {

@@ -4,6 +4,7 @@
              RequestedThemeVariant="Default">
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
         
         <!-- Estilos de la Barra de Herramientas: altura uniforme (30px) y tipografía compacta (11-12px) -->
         <Style Selector="Button.toolbar">

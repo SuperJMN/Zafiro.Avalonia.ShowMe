@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -18,7 +20,8 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 {
     private readonly PreviewServer server;
     private readonly IStorageService storageService;
-    private readonly string? editorTemplate;
+    private readonly Maybe<CodeEditor> codeEditor;
+    private readonly IDisposable codeEditorSubscription;
     private FileSystemWatcher? fileWatcher;
 
     private WriteableBitmap? currentBitmap;
@@ -42,6 +45,11 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     private ElementInspectionInfo? selectedElement;
     private Rect? selectionBounds;
     private ElementInspectionInfo? hoveredElement;
+    private XamlSourceViewModel? sourceView;
+    private bool canOpenInEditor;
+    private bool viewXamlOnNextSelection;
+    private readonly BehaviorSubject<bool> hasSelection = new(false);
+    private readonly BehaviorSubject<bool> editorAvailable = new(false);
 
     private bool isHoverRequestPending;
     private Point? pendingHoverPoint;
@@ -144,6 +152,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         {
             this.RaiseAndSetIfChanged(ref selectedElement, value);
             this.RaisePropertyChanged(nameof(IsHoverAdornerVisible));
+            hasSelection.OnNext(value != null);
         }
     }
 
@@ -160,6 +169,28 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public bool IsHoverAdornerVisible =>
         HoveredElement != null &&
         (SelectedElement == null || SelectedElement.Bounds != HoveredElement.Bounds);
+
+    /// <summary>
+    /// The XAML shown in the read-only viewer, or null when the viewer is closed.
+    /// </summary>
+    public XamlSourceViewModel? SourceView
+    {
+        get => sourceView;
+        private set => this.RaiseAndSetIfChanged(ref sourceView, value);
+    }
+
+    /// <summary>
+    /// True when an external editor is configured, so "Abrir en el editor" is offered.
+    /// </summary>
+    public bool CanOpenInEditor
+    {
+        get => canOpenInEditor;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref canOpenInEditor, value);
+            editorAvailable.OnNext(value);
+        }
+    }
 
     public Rect? SelectionBounds
     {
@@ -348,7 +379,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public IEnhancedCommand FitCommand { get; }
     public IEnhancedCommand ResetDimensionsCommand { get; }
     public IEnhancedCommand ToggleInspectorCommand { get; }
-    public IEnhancedCommand NavigateToCodeCommand { get; }
+    public IEnhancedCommand ViewXamlCommand { get; }
+    public IEnhancedCommand OpenInEditorCommand { get; }
+    public IEnhancedCommand CloseSourceViewCommand { get; }
 
     public PreviewSessionViewModel(
         PreviewTarget target,
@@ -357,12 +390,12 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         string initialTheme = XamlThemeModifier.ThemeDefault,
         int? explicitWidth = null,
         int? explicitHeight = null,
-        string? editorTemplate = null)
+        CodeEditor? codeEditor = null)
     {
         Target = target;
         this.server = server;
         this.storageService = storageService;
-        this.editorTemplate = editorTemplate;
+        this.codeEditor = Maybe.From(codeEditor);
         currentTheme = initialTheme;
 
         previewWidth = explicitWidth ?? target.InitialWidth ?? 1024;
@@ -410,7 +443,22 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
             SidebarMode = "PreviewWith";
             server.SelectCatalogItem(null, "PreviewWith");
         });
-        NavigateToCodeCommand = EnhancedCommand.Create(NavigateToCode);
+        ViewXamlCommand = EnhancedCommand.Create(ViewSelectedXaml, hasSelection);
+        OpenInEditorCommand = EnhancedCommand.Create(
+            OpenSelectedInEditor,
+            hasSelection.CombineLatest(editorAvailable, (selected, available) => selected && available));
+        CloseSourceViewCommand = EnhancedCommand.Create(() => SourceView = null);
+        codeEditorSubscription = this.codeEditor.Match(
+            editor =>
+            {
+                CanOpenInEditor = editor.IsAvailable;
+                return Observable.FromEventPattern<System.ComponentModel.PropertyChangedEventHandler, System.ComponentModel.PropertyChangedEventArgs>(
+                        h => editor.PropertyChanged += h,
+                        h => editor.PropertyChanged -= h)
+                    .Where(e => e.EventArgs.PropertyName == nameof(CodeEditor.IsAvailable))
+                    .Subscribe(_ => CanOpenInEditor = editor.IsAvailable);
+            },
+            () => System.Reactive.Disposables.Disposable.Empty);
 
         server.FrameReceived += OnFrameReceived;
         server.XamlStatusReceived += OnXamlStatusReceived;
@@ -500,7 +548,9 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
 
             if (isSecondClickOfInspection)
             {
-                NavigateToCode();
+                // The double-clicked element may not be selected yet, so its XAML is shown when the hit test answers.
+                viewXamlOnNextSelection = true;
+                server.RequestHitTest(pt.X, pt.Y, isHover: false);
                 return;
             }
 
@@ -530,6 +580,12 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         if (IsInspectorActive)
         {
             IsInspectorActive = false;
+            return true;
+        }
+
+        if (SourceView != null)
+        {
+            SourceView = null;
             return true;
         }
 
@@ -580,38 +636,48 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
         }
     }
 
-    public void NavigateToCode()
+    /// <summary>
+    /// Shows the XAML of the selected element inside ShowMe, at the line where it is defined.
+    /// </summary>
+    public void ViewSelectedXaml()
     {
-        if (SelectedElement == null || SelectedElement.LineNumber <= 0) return;
+        if (SelectedElement == null) return;
 
-        var line = SelectedElement.LineNumber;
-        var col = SelectedElement.LinePosition;
-        var file = SelectedElement.ResolvedFilePath ?? SourceFileResolver.Resolve(SelectedElement.SourceUri, Target);
-        NavigateToFile(file, line, col);
+        ViewXaml(SelectedFile(SelectedElement), SelectedElement.LineNumber, SelectedElement.LinePosition);
     }
 
-    public void NavigateToFile(string file, int line, int col)
+    public void ViewXaml(string file, int line, int column)
     {
-        var resolution = EditorCommand.Resolve(editorTemplate, Environment.GetEnvironmentVariable, ExecutableLocator.Find, file, line, col);
-        if (resolution.IsFailure)
+        var text = Result.Try(() => File.ReadAllText(file), e => e.Message);
+        if (text.IsFailure)
         {
-            Status = $"No se pudo abrir {Path.GetFileName(file)}: {resolution.Error}.";
+            Status = $"No se pudo leer {Path.GetFileName(file)}: {text.Error}";
             return;
         }
 
-        var editor = resolution.Value;
-        var editorName = editor.Match(e => Path.GetFileName(e.FileName), () => "el manejador del sistema");
-
-        try
-        {
-            Process.Start(editor.Match(e => e.ToStartInfo(), () => new ProcessStartInfo(file) { UseShellExecute = true }));
-            Status = $"Abriendo {Path.GetFileName(file)}:{line} con {editorName}.";
-        }
-        catch (Exception ex)
-        {
-            Status = $"No se pudo abrir {Path.GetFileName(file)} con {editorName}: {ex.Message}";
-        }
+        SourceView = new XamlSourceViewModel(file, text.Value, line, column);
     }
+
+    public void OpenSelectedInEditor()
+    {
+        if (SelectedElement == null) return;
+
+        OpenInEditor(SelectedFile(SelectedElement), SelectedElement.LineNumber, SelectedElement.LinePosition);
+    }
+
+    public void OpenInEditor(string file, int line, int column)
+    {
+        var opened = codeEditor
+            .ToResult("no hay ningún editor de código configurado (Más acciones → Editor de código…)")
+            .Bind(editor => editor.Open(file, Math.Max(line, 1), Math.Max(column, 1)));
+
+        Status = opened.IsSuccess
+            ? $"Abriendo {Path.GetFileName(file)}:{line} con {opened.Value}."
+            : $"No se pudo abrir {Path.GetFileName(file)}: {opened.Error}";
+    }
+
+    private string SelectedFile(ElementInspectionInfo element) =>
+        element.ResolvedFilePath ?? SourceFileResolver.Resolve(element.SourceUri, Target);
 
     public void SelectElement(InspectMenuItemViewModel item)
     {
@@ -792,9 +858,16 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                         Properties: hit.Properties ?? new Dictionary<string, string>()
                     );
                     SelectionBounds = bounds;
+
+                    if (viewXamlOnNextSelection)
+                    {
+                        viewXamlOnNextSelection = false;
+                        ViewSelectedXaml();
+                    }
                 }
                 else
                 {
+                    viewXamlOnNextSelection = false;
                     SelectedElement = null;
                     SelectionBounds = null;
                 }
@@ -822,7 +895,19 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
                     resolvedFilePath: resolved,
                     relativeFilePath: relPath,
                     bounds: bounds,
-                    onSelect: SelectElement
+                    onSelect: SelectElement,
+                    onViewXaml: menuItem =>
+                    {
+                        SelectElement(menuItem);
+                        ViewXaml(menuItem.ResolvedFilePath, menuItem.LineNumber, menuItem.LinePosition);
+                    },
+                    onOpenInEditor: CanOpenInEditor
+                        ? menuItem =>
+                        {
+                            SelectElement(menuItem);
+                            OpenInEditor(menuItem.ResolvedFilePath, menuItem.LineNumber, menuItem.LinePosition);
+                        }
+                        : null
                 );
             }).ToList();
 
@@ -983,6 +1068,7 @@ public sealed class PreviewSessionViewModel : ReactiveObject, IDisposable
     public void Dispose()
     {
         server.CatalogInfoReceived -= OnCatalogInfoReceived;
+        codeEditorSubscription.Dispose();
         dragDebounceCts?.Cancel();
         dragDebounceCts?.Dispose();
         fileWatcher?.Dispose();

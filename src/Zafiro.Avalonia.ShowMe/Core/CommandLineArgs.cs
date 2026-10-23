@@ -101,8 +101,9 @@ public sealed record CommandLineArgs(
               -t, --theme <tema>      Tema inicial: 'Default', 'Light' o 'Dark'.
               -w, --width <pixels>    Ancho inicial del viewport en píxeles.
               -h, --height <pixels>   Alto inicial del viewport en píxeles.
-              -e, --editor <plantilla> Comando para abrir el código de un elemento. Admite {file}, {line} y {column}.
-                                      Sin esta opción se usan $VISUAL o $EDITOR y, si no hay, el manejador del sistema.
+              -e, --editor <plantilla> Editor externo para «Abrir en el editor». Admite {file}, {line} y {column}.
+                                      Prevalece sobre el editor guardado en Más acciones → Editor de código…,
+                                      y este sobre $VISUAL y $EDITOR. El XAML siempre se puede ver dentro de ShowMe.
               -?, -h, --help          Muestra esta ayuda.
             
             Ejemplos:

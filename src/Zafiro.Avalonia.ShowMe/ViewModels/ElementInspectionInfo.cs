@@ -27,9 +27,13 @@ public sealed record ElementInspectionInfo(
         ? (!string.IsNullOrWhiteSpace(SourceFileName) ? $"{SourceFileName}:{LineNumber}" : $"Línea {LineNumber}:{LinePosition}")
         : "";
 
-    public string NavigationToolTip => !string.IsNullOrWhiteSpace(ResolvedFilePath)
-        ? $"Saltar a {Path.GetFileName(ResolvedFilePath)} (línea {LineNumber}) en el editor de código"
-        : "Saltar a este control en el editor de código";
+    public string ViewXamlToolTip => !string.IsNullOrWhiteSpace(SourceFileName)
+        ? $"Ver {SourceFileName} (línea {LineNumber}) en ShowMe"
+        : "Ver el XAML de este control en ShowMe";
+
+    public string EditorToolTip => !string.IsNullOrWhiteSpace(SourceFileName)
+        ? $"Abrir {SourceFileName} (línea {LineNumber}) en el editor de código"
+        : "Abrir este control en el editor de código";
 
     public string ClassesText => Classes.Count > 0 ? string.Join(" ", Classes) : "";
 

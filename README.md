@@ -20,6 +20,10 @@ Aplicación y herramienta CLI para previsualizar XAML/AXAML arbitrario de otras 
   - Alojado en el control `ZoomBorder` de Wieslaw Soltes (`PanAndZoom`).
   - Desplazamiento panorámico (pan) mediante arrastre con el ratón.
   - Zoom interactivo mediante la rueda del ratón y botones dedicados (`+`, `−`, `1:1`, `Ajustar`).
+- **Ver el XAML de un elemento:**
+  - Con el elemento seleccionado, «Ver XAML» (en la barra de estado, en el submenú de cada elemento del menú contextual del inspector o con doble clic) abre un visor de solo lectura dentro de ShowMe, con resaltado XML, en el archivo donde está definido el elemento y con su línea resaltada.
+  - Si el elemento viene de otro archivo (por ejemplo, un `UserControl`), el visor muestra ese archivo. El visor se cierra con su botón ✕ o con Esc.
+  - «Abrir en el editor» solo aparece cuando hay un editor de código configurado.
 - **Selector de Tema:**
   - Selector con opciones: **Aplicación**, **Claro** y **Oscuro**.
   - Cambia tanto el tema de la ventana de ShowMe como el tema del XAML renderizado en el previewer (`RequestedThemeVariant` / `ThemeVariantScope`).
@@ -80,14 +84,20 @@ zafiro-avalonia-showme ruta/al/archivo.axaml --theme Dark
 # Especificar resolución inicial del viewport
 zafiro-avalonia-showme ruta/al/archivo.axaml -w 1280 -h 800
 
-# Editor para "ir al código" ({file}, {line} y {column} se sustituyen)
+# Editor externo para «Abrir en el editor» ({file}, {line} y {column} se sustituyen)
 zafiro-avalonia-showme ruta/al/archivo.axaml --editor "rider --line {line} --column {column} {file}"
 
 # Ver ayuda de opciones
 zafiro-avalonia-showme --help
 ```
 
-Sin `--editor`, ShowMe usa `$VISUAL` o `$EDITOR` y conoce cómo saltar a la línea en VS Code, Cursor, Rider, Zed, Sublime Text, Vim/Neovim, Helix, nano, micro, Kakoune y Emacs. Los editores de terminal se abren dentro de `$TERMINAL` o, si no está definida, de `x-terminal-emulator`; si no hay ninguno, la barra de estado lo indica. Si no hay editor configurado, el archivo se abre con el manejador del sistema, y cualquier fallo aparece en la barra de estado.
+Ver el XAML siempre ocurre dentro de ShowMe; el editor externo es opcional. El editor se elige, por este orden:
+
+1. `--editor` en la línea de comandos.
+2. El editor guardado desde la app, en **Más acciones → Editor de código…**. Se guarda en `settings.json`, dentro de la carpeta de configuración del usuario (`~/.config/Zafiro.Avalonia.ShowMe/` en Linux), así que también se aplica cuando ShowMe se abre desde el gestor de archivos.
+3. `$VISUAL` o `$EDITOR`. ShowMe conoce cómo saltar a la línea en VS Code, Cursor, Rider, Zed, Sublime Text, Vim/Neovim, Helix, nano, micro, Kakoune y Emacs. Los editores de terminal se abren dentro de `$TERMINAL` o, si no está definida, de `x-terminal-emulator`.
+
+Si no hay ningún editor, «Abrir en el editor» no aparece. ShowMe nunca entrega un `.axaml` al manejador del sistema, porque puede estar asociado al propio ShowMe. Cualquier fallo al abrir el editor aparece en la barra de estado.
 
 ---
 
@@ -97,8 +107,10 @@ Sin `--editor`, ShowMe usa `$VISUAL` o `$EDITOR` y conoce cómo saltar a la lín
 Zafiro.Avalonia.ShowMe/
 ├── src/Zafiro.Avalonia.ShowMe/
 │   ├── Core/
+│   │   ├── CodeEditor.cs              # Editor externo opcional (--editor, ajuste guardado, $VISUAL/$EDITOR)
 │   │   ├── CommandLineArgs.cs         # Parser de argumentos CLI
 │   │   ├── EditorCommand.cs           # Comando del editor para ir al código
+│   │   ├── UserSettings.cs            # Ajustes del usuario en settings.json
 │   │   ├── ExecutableLocator.cs       # Búsqueda de ejecutables en PATH (y PATHEXT en Windows)
 │   │   ├── PreviewTarget.cs           # Metadatos del archivo, proyecto y binarios host
 │   │   ├── PreviewTargetResolver.cs   # Descubrimiento de proyecto host y propiedades MSBuild
@@ -114,7 +126,8 @@ Zafiro.Avalonia.ShowMe/
 │   │   └── ThemeOption.cs             # Opciones de tema (Default, Light, Dark)
 │   └── Views/
 │       ├── MainWindow.axaml           # Toolbar, ZoomBorder (PanAndZoom) y StatusBar
-│       └── MainWindow.axaml.cs        # Drag & Drop y eventos de zoom
+│       ├── MainWindow.axaml.cs        # Drag & Drop y eventos de zoom
+│       └── XamlSourceView.cs          # Visor de XAML de solo lectura (AvaloniaEdit)
 └── test/Zafiro.Avalonia.ShowMe.Tests/ # Pruebas unitarias e integración
 ```
 

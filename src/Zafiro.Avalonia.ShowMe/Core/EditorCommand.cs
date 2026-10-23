@@ -39,9 +39,9 @@ public sealed record EditorCommand(string FileName, IReadOnlyList<string> Argume
 
     /// <summary>
     /// Resolves the command that opens <paramref name="file"/> at the given position.
-    /// The explicit template wins; otherwise $VISUAL and then $EDITOR are used, with known arguments for common editors.
+    /// The explicit template (from --editor or the saved setting) wins; otherwise $VISUAL and then $EDITOR are used, with known arguments for common editors.
     /// Terminal editors run inside $TERMINAL or, failing that, x-terminal-emulator; without either they cannot be opened.
-    /// None means the file should be opened with the system handler.
+    /// None means no editor is configured; the file is never handed to the system handler.
     /// The program is located with <paramref name="findExecutable"/> so scripts such as code.cmd also start on Windows.
     /// </summary>
     public static Result<Maybe<EditorCommand>> Resolve(
@@ -80,7 +80,7 @@ public sealed record EditorCommand(string FileName, IReadOnlyList<string> Argume
 
         if (terminal == null)
         {
-            return Result.Failure<Maybe<EditorCommand>>($"{name} necesita un terminal; define $TERMINAL o usa --editor");
+            return Result.Failure<Maybe<EditorCommand>>($"{name} necesita un terminal; define $TERMINAL o configura otro editor en Más acciones → Editor de código…");
         }
 
         return command.Map(c => InTerminal(c, terminal).Locate(findExecutable));

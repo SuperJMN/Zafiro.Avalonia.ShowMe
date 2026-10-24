@@ -333,7 +333,13 @@
         </Border>
 
         <!-- ================= ÁREA CENTRAL DE PREVISUALIZACIÓN ================= -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+        <Grid x:Name="PreviewArea" Grid.Row="1">
+            <!-- La columna del visor de XAML la gestiona MainWindow.axaml.cs: se ajusta con el GridSplitter y se pliega al cerrarlo -->
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="200" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             
             <!-- PANEL LATERAL NATIVO: CATÁLOGO DE RECURSOS Y ESTILOS -->
             <Border Grid.Column="0"
@@ -863,8 +869,8 @@
         </Panel>
 
             <!-- VISOR DE XAML (solo lectura): ocupa su propia columna para no tapar la vista previa -->
-            <Border Grid.Column="2"
-                    Width="480"
+            <Border x:Name="SourceViewerPanel"
+                    Grid.Column="2"
                     IsVisible="{Binding CurrentSession.SourceView, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
                     Background="{DynamicResource SystemChromeMediumColor}"
                     BorderBrush="{DynamicResource SystemChromeHighColor}"
@@ -904,6 +910,15 @@
                                           Source="{Binding CurrentSession.SourceView, FallbackValue={x:Null}}" />
                 </DockPanel>
             </Border>
+
+            <!-- Divisor para ajustar el ancho del visor de XAML: se superpone a su borde izquierdo -->
+            <GridSplitter Grid.Column="2"
+                          Width="6"
+                          HorizontalAlignment="Left"
+                          ResizeDirection="Columns"
+                          Background="Transparent"
+                          IsVisible="{Binding #SourceViewerPanel.IsVisible}"
+                          AutomationProperties.Name="Ajustar ancho del visor de XAML" />
         </Grid>
 
         <!-- ================= BARRA DE ESTADO ================= -->

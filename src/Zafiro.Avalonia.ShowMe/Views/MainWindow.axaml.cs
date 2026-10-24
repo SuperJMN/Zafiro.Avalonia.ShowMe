@@ -19,7 +19,9 @@ public partial class MainWindow : Window
 {
     private static readonly KeyGesture ToggleInspectorGesture = new(Key.C, KeyModifiers.Control | KeyModifiers.Shift);
     private static readonly KeyGesture GoBackGesture = new(Key.Left, KeyModifiers.Alt);
+    private const double SourceViewerMinWidth = 280;
     private readonly SerialDisposable sessionSubscriptions = new();
+    private GridLength sourceViewerWidth = new(480);
 
     public MainWindow()
     {
@@ -53,7 +55,33 @@ public partial class MainWindow : Window
             }
         });
 
+        SourceViewerPanel?.GetObservable(IsVisibleProperty).Subscribe(UpdateSourceViewerColumn);
+
         DataContextChanged += OnDataContextChanged;
+    }
+
+    // El GridSplitter fija la columna del visor en píxeles; al cerrarlo se guarda ese ancho y se pliega
+    // la columna para que no deje un hueco vacío, y al abrirlo de nuevo se restaura.
+    private void UpdateSourceViewerColumn(bool isVisible)
+    {
+        if (PreviewArea == null) return;
+
+        var column = PreviewArea.ColumnDefinitions[2];
+
+        if (isVisible)
+        {
+            column.MinWidth = SourceViewerMinWidth;
+            column.Width = sourceViewerWidth;
+            return;
+        }
+
+        if (column.Width.IsAbsolute)
+        {
+            sourceViewerWidth = column.Width;
+        }
+
+        column.MinWidth = 0;
+        column.Width = GridLength.Auto;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
